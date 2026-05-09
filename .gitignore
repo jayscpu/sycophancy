@@ -6,3 +6,4 @@ __pycache__/
 ~$*
 results/distilbert/checkpoints/best_model.pt
 results/bert/checkpoints/best_model.pt
+results/roberta/checkpoints/best_model.pt
