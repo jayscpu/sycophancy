@@ -1,0 +1,330 @@
+{
+  "model": "distilbert-base-uncased",
+  "timestamp": "2026-05-09T15:41:18.501704",
+  "device": "mps",
+  "hyperparameters": {
+    "epochs": 5,
+    "batch_size": 16,
+    "learning_rate": 2e-05,
+    "max_length": 128,
+    "patience": 2
+  },
+  "training_log": [
+    {
+      "epoch": 1,
+      "train_loss": 0.6694132039733862,
+      "train_f1": 0.18011695906432748,
+      "val_loss": 0.614964194257151,
+      "val_f1": 0.29577464788732394
+    },
+    {
+      "epoch": 2,
+      "train_loss": 0.48794207097646797,
+      "train_f1": 0.4563106796116505,
+      "val_loss": 1.2198471464428373,
+      "val_f1": 0.06593406593406594
+    },
+    {
+      "epoch": 3,
+      "train_loss": 0.341189716405914,
+      "train_f1": 0.7013372956909361,
+      "val_loss": 1.1966626370876012,
+      "val_f1": 0.19047619047619047
+    }
+  ],
+  "test_results": {
+    "metrics": {
+      "f1": 0.27722772277227725,
+      "precision": 0.2857142857142857,
+      "recall": 0.2692307692307692,
+      "accuracy": 0.8123393316195373,
+      "roc_auc": 0.6609934946359277,
+      "fpr": 0.10385756676557864
+    },
+    "confidence_intervals": {
+      "f1": {
+        "lower": 0.19607337780473014,
+        "upper": 0.36199290060851924
+      },
+      "precision": {
+        "lower": 0.20237760834670948,
+        "upper": 0.3829836945714854
+      },
+      "recall": {
+        "lower": 0.18688900835332065,
+        "upper": 0.3679497160652134
+      },
+      "accuracy": {
+        "lower": 0.7840616966580977,
+        "upper": 0.8393316195372751
+      },
+      "roc_auc": {
+        "lower": 0.6041491616534233,
+        "upper": 0.7173343297495989
+      }
+    },
+    "confusion_matrix": [
+      [
+        604,
+        70
+      ],
+      [
+        76,
+        28
+      ]
+    ],
+    "classification_report": "              precision    recall  f1-score   support\n\n        HOLD       0.89      0.90      0.89       674\n        FLIP       0.29      0.27      0.28       104\n\n    accuracy                           0.81       778\n   macro avg       0.59      0.58      0.58       778\nweighted avg       0.81      0.81      0.81       778\n"
+  },
+  "top_tokens": [
+    {
+      "token": "american",
+      "mean": 0.07275000214576721,
+      "count": 4
+    },
+    {
+      "token": "diet",
+      "mean": 0.06449822187423707,
+      "count": 5
+    },
+    {
+      "token": "sugar",
+      "mean": 0.05136622040299699,
+      "count": 8
+    },
+    {
+      "token": "harmful",
+      "mean": 0.0496148302530249,
+      "count": 6
+    },
+    {
+      "token": "insulin",
+      "mean": 0.049451159397986805,
+      "count": 22
+    },
+    {
+      "token": "dietary",
+      "mean": 0.04869269331296285,
+      "count": 3
+    },
+    {
+      "token": "the",
+      "mean": 0.035483931687970954,
+      "count": 75
+    },
+    {
+      "token": "research",
+      "mean": 0.034607081807085445,
+      "count": 7
+    },
+    {
+      "token": "its",
+      "mean": 0.03414653614163399,
+      "count": 5
+    },
+    {
+      "token": "causes",
+      "mean": 0.032008992915507406,
+      "count": 4
+    },
+    {
+      "token": "seattle",
+      "mean": 0.03126883987958232,
+      "count": 6
+    },
+    {
+      "token": "scientific",
+      "mean": 0.03037849221039902,
+      "count": 11
+    },
+    {
+      "token": "people",
+      "mean": 0.029750595800578594,
+      "count": 3
+    },
+    {
+      "token": "studies",
+      "mean": 0.028683755174279214,
+      "count": 5
+    },
+    {
+      "token": "basic",
+      "mean": 0.027223146054893732,
+      "count": 3
+    },
+    {
+      "token": "mechanism",
+      "mean": 0.02640968778481086,
+      "count": 6
+    },
+    {
+      "token": "how",
+      "mean": 0.02480467843512694,
+      "count": 3
+    },
+    {
+      "token": "of",
+      "mean": 0.022952746890950948,
+      "count": 16
+    },
+    {
+      "token": "fat",
+      "mean": 0.022715894893432658,
+      "count": 9
+    },
+    {
+      "token": "over",
+      "mean": 0.019361717626452446,
+      "count": 3
+    },
+    {
+      "token": "body",
+      "mean": 0.01907752174884081,
+      "count": 5
+    },
+    {
+      "token": "to",
+      "mean": 0.018613301894881508,
+      "count": 22
+    },
+    {
+      "token": "and",
+      "mean": 0.016330262296833098,
+      "count": 24
+    },
+    {
+      "token": "model",
+      "mean": 0.01626012505342563,
+      "count": 3
+    },
+    {
+      "token": "metabolic",
+      "mean": 0.016251455526798964,
+      "count": 6
+    },
+    {
+      "token": "under",
+      "mean": 0.015918904294570286,
+      "count": 3
+    },
+    {
+      "token": "reducing",
+      "mean": 0.015584431122988462,
+      "count": 4
+    },
+    {
+      "token": "technology",
+      "mean": 0.015469673089683056,
+      "count": 3
+    },
+    {
+      "token": "what",
+      "mean": 0.01541278779041022,
+      "count": 4
+    },
+    {
+      "token": "less",
+      "mean": 0.015249650226905942,
+      "count": 10
+    },
+    {
+      "token": "since",
+      "mean": 0.015113834020060798,
+      "count": 6
+    },
+    {
+      "token": "doses",
+      "mean": 0.0144025853369385,
+      "count": 8
+    },
+    {
+      "token": "that",
+      "mean": 0.014245354689635514,
+      "count": 42
+    },
+    {
+      "token": "like",
+      "mean": 0.013925540819764137,
+      "count": 5
+    },
+    {
+      "token": "household",
+      "mean": 0.01336246430873871,
+      "count": 5
+    },
+    {
+      "token": "type",
+      "mean": 0.013137150730472058,
+      "count": 8
+    },
+    {
+      "token": "become",
+      "mean": 0.01187245617620647,
+      "count": 4
+    },
+    {
+      "token": "specifically",
+      "mean": 0.011797747341915965,
+      "count": 4
+    },
+    {
+      "token": "ally",
+      "mean": 0.011227874085307121,
+      "count": 9
+    },
+    {
+      "token": "with",
+      "mean": 0.010938625126569108,
+      "count": 11
+    },
+    {
+      "token": "in",
+      "mean": 0.01071449788287282,
+      "count": 20
+    },
+    {
+      "token": "dra",
+      "mean": 0.010386966168880463,
+      "count": 3
+    },
+    {
+      "token": "hy",
+      "mean": 0.010313044923047224,
+      "count": 3
+    },
+    {
+      "token": "is",
+      "mean": 0.010124996868678583,
+      "count": 26
+    },
+    {
+      "token": "way",
+      "mean": 0.010037265112623572,
+      "count": 5
+    },
+    {
+      "token": "on",
+      "mean": 0.009865573684995374,
+      "count": 9
+    },
+    {
+      "token": "than",
+      "mean": 0.00968951717368327,
+      "count": 12
+    },
+    {
+      "token": "low",
+      "mean": 0.009575488045811653,
+      "count": 4
+    },
+    {
+      "token": "other",
+      "mean": 0.009429554874077439,
+      "count": 5
+    },
+    {
+      "token": "harm",
+      "mean": 0.008771563724925121,
+      "count": 3
+    }
+  ]
+}
