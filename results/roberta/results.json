@@ -1,0 +1,330 @@
+{
+  "model": "roberta-base",
+  "timestamp": "2026-05-09T16:25:56.995504",
+  "device": "mps",
+  "hyperparameters": {
+    "epochs": 5,
+    "batch_size": 16,
+    "learning_rate": 2e-05,
+    "max_length": 128,
+    "patience": 2
+  },
+  "training_log": [
+    {
+      "epoch": 1,
+      "train_loss": 0.7024446682594085,
+      "train_f1": 0.15263157894736842,
+      "val_loss": 0.7361186502332037,
+      "val_f1": 0.2802547770700637
+    },
+    {
+      "epoch": 2,
+      "train_loss": 0.6326526083817737,
+      "train_f1": 0.33816425120772947,
+      "val_loss": 1.5266707809959454,
+      "val_f1": 0.022222222222222223
+    },
+    {
+      "epoch": 3,
+      "train_loss": 0.5701994783998767,
+      "train_f1": 0.6428571428571429,
+      "val_loss": 1.3078258095563136,
+      "val_f1": 0.12
+    }
+  ],
+  "test_results": {
+    "metrics": {
+      "f1": 0.2943722943722944,
+      "precision": 0.2677165354330709,
+      "recall": 0.3269230769230769,
+      "accuracy": 0.7904884318766067,
+      "roc_auc": 0.6863729742068021,
+      "fpr": 0.13798219584569732
+    },
+    "confidence_intervals": {
+      "f1": {
+        "lower": 0.21831687867856467,
+        "upper": 0.3739852913796313
+      },
+      "precision": {
+        "lower": 0.18800813008130082,
+        "upper": 0.3474576271186441
+      },
+      "recall": {
+        "lower": 0.240375,
+        "upper": 0.4260869565217391
+      },
+      "accuracy": {
+        "lower": 0.7609254498714653,
+        "upper": 0.8213367609254498
+      },
+      "roc_auc": {
+        "lower": 0.6312494989641887,
+        "upper": 0.741585003186056
+      }
+    },
+    "confusion_matrix": [
+      [
+        581,
+        93
+      ],
+      [
+        70,
+        34
+      ]
+    ],
+    "classification_report": "              precision    recall  f1-score   support\n\n        HOLD       0.89      0.86      0.88       674\n        FLIP       0.27      0.33      0.29       104\n\n    accuracy                           0.79       778\n   macro avg       0.58      0.59      0.59       778\nweighted avg       0.81      0.79      0.80       778\n"
+  },
+  "top_tokens": [
+    {
+      "token": "all",
+      "mean": 0.23655598858992258,
+      "count": 3
+    },
+    {
+      "token": "\u0121the",
+      "mean": 0.13769308378897518,
+      "count": 83
+    },
+    {
+      "token": "\u0121internet",
+      "mean": 0.1355798291042447,
+      "count": 4
+    },
+    {
+      "token": "\u0121sugar",
+      "mean": 0.13041151147335767,
+      "count": 10
+    },
+    {
+      "token": "\u0121day",
+      "mean": 0.12150616943836212,
+      "count": 3
+    },
+    {
+      "token": "\u0121body",
+      "mean": 0.10014909729361535,
+      "count": 5
+    },
+    {
+      "token": "\u0121luck",
+      "mean": 0.09960681945085526,
+      "count": 3
+    },
+    {
+      "token": "\u0121a",
+      "mean": 0.09736481708075319,
+      "count": 21
+    },
+    {
+      "token": ".\"",
+      "mean": 0.09730694387690164,
+      "count": 4
+    },
+    {
+      "token": "\u0121be",
+      "mean": 0.09534630016423762,
+      "count": 8
+    },
+    {
+      "token": "\u0121gore",
+      "mean": 0.09517844021320343,
+      "count": 3
+    },
+    {
+      "token": "\u0121thats",
+      "mean": 0.09475511695361799,
+      "count": 9
+    },
+    {
+      "token": "\u0121fat",
+      "mean": 0.09165358077734709,
+      "count": 8
+    },
+    {
+      "token": "\u0121step",
+      "mean": 0.08869222551584244,
+      "count": 3
+    },
+    {
+      "token": "\u0121since",
+      "mean": 0.0877657481469214,
+      "count": 5
+    },
+    {
+      "token": "\u0121\"",
+      "mean": 0.08687518494060406,
+      "count": 13
+    },
+    {
+      "token": "re",
+      "mean": 0.08655797690153122,
+      "count": 3
+    },
+    {
+      "token": "\u0121its",
+      "mean": 0.07932906384978976,
+      "count": 7
+    },
+    {
+      "token": "\u0121diet",
+      "mean": 0.0778096467256546,
+      "count": 3
+    },
+    {
+      "token": "\u0121what",
+      "mean": 0.07736408617347479,
+      "count": 6
+    },
+    {
+      "token": "\u0121causes",
+      "mean": 0.07324956497177482,
+      "count": 4
+    },
+    {
+      "token": "\u0121not",
+      "mean": 0.07313895439729094,
+      "count": 10
+    },
+    {
+      "token": "\u0121cities",
+      "mean": 0.07306768372654915,
+      "count": 3
+    },
+    {
+      "token": "\u0121harm",
+      "mean": 0.07152458031972249,
+      "count": 3
+    },
+    {
+      "token": "\u0121answer",
+      "mean": 0.06886990634458405,
+      "count": 14
+    },
+    {
+      "token": "\u0121one",
+      "mean": 0.06732870393898338,
+      "count": 8
+    },
+    {
+      "token": "\u0121pounds",
+      "mean": 0.06474658194929361,
+      "count": 4
+    },
+    {
+      "token": "\u0121respectfully",
+      "mean": 0.06175862749417623,
+      "count": 3
+    },
+    {
+      "token": "\u0121\u00e2\u0123\u0137",
+      "mean": 0.0607963771559298,
+      "count": 10
+    },
+    {
+      "token": "\u0121type",
+      "mean": 0.06072243134258315,
+      "count": 8
+    },
+    {
+      "token": "\u0121studies",
+      "mean": 0.05980231054127216,
+      "count": 5
+    },
+    {
+      "token": "\u0121there",
+      "mean": 0.057033322751522064,
+      "count": 4
+    },
+    {
+      "token": "\u0121in",
+      "mean": 0.056945519880033456,
+      "count": 26
+    },
+    {
+      "token": "\u0121that",
+      "mean": 0.055803753403123726,
+      "count": 43
+    },
+    {
+      "token": "\u0121my",
+      "mean": 0.055159348994493484,
+      "count": 3
+    },
+    {
+      "token": "\u0121seattle",
+      "mean": 0.055016497150063515,
+      "count": 6
+    },
+    {
+      "token": "\u0121city",
+      "mean": 0.051259595900774,
+      "count": 5
+    },
+    {
+      "token": "\u0121more",
+      "mean": 0.04990111982139448,
+      "count": 12
+    },
+    {
+      "token": "\u0121nutrition",
+      "mean": 0.046291196097930275,
+      "count": 3
+    },
+    {
+      "token": "\u0121insulin",
+      "mean": 0.04599754851968849,
+      "count": 17
+    },
+    {
+      "token": "\u0121i",
+      "mean": 0.045560450409539044,
+      "count": 26
+    },
+    {
+      "token": "\u0121diabetes",
+      "mean": 0.04521376533167703,
+      "count": 7
+    },
+    {
+      "token": "\u0121weight",
+      "mean": 0.044693234687050186,
+      "count": 3
+    },
+    {
+      "token": "ulin",
+      "mean": 0.04290914349257946,
+      "count": 4
+    },
+    {
+      "token": "\u0121electronics",
+      "mean": 0.04282587820974489,
+      "count": 6
+    },
+    {
+      "token": "\u0121back",
+      "mean": 0.04261054610833526,
+      "count": 4
+    },
+    {
+      "token": "\u0121point",
+      "mean": 0.04204489691182971,
+      "count": 5
+    },
+    {
+      "token": "\u0121reducing",
+      "mean": 0.041689335058132805,
+      "count": 3
+    },
+    {
+      "token": "\u0121shed",
+      "mean": 0.04083493103583654,
+      "count": 3
+    },
+    {
+      "token": "\u0121with",
+      "mean": 0.040737544600334435,
+      "count": 9
+    }
+  ]
+}
