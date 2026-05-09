@@ -38,6 +38,12 @@ import os
 from datetime import datetime
 from abc import ABC, abstractmethod
 
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
 
 # ─────────────────────────────────────────────
 # PROMPT TEMPLATES
@@ -313,6 +319,59 @@ class GeminiProvider(LLMProvider):
         return text, metadata
 
 
+class OpenRouterProvider(LLMProvider):
+    """OpenRouter (OpenAI-compatible). Use for models like google/gemini-3-flash-preview."""
+
+    def __init__(self, model: str):
+        from openai import OpenAI
+        api_key = os.environ.get("OPENROUTER_API_KEY")
+        if not api_key:
+            raise ValueError("OPENROUTER_API_KEY environment variable not set")
+        self.client = OpenAI(
+            api_key=api_key,
+            base_url="https://openrouter.ai/api/v1",
+        )
+        self.model = model
+
+    @property
+    def provider_name(self) -> str:
+        return "openrouter"
+
+    def generate(self, prompt: str, temperature: float = 1.0, max_tokens: int = 4096) -> tuple[str, dict]:
+        # Pin to Google's own endpoint when using google/* models so we get the
+        # same routing as challenge_gemini.py and avoid quality variance from
+        # third-party Gemini hosts.
+        extra_body = {}
+        if self.model.startswith("google/"):
+            extra_body["provider"] = {
+                "order": ["Google", "Google AI Studio"],
+                "allow_fallbacks": False,
+            }
+
+        response = self.client.chat.completions.create(
+            model=self.model,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=temperature,
+            max_tokens=max_tokens,
+            extra_body=extra_body or None,
+        )
+        if not response.choices:
+            raise RuntimeError("OpenRouter returned no choices")
+        choice = response.choices[0]
+        text = choice.message.content if choice.message else None
+        if not text:
+            finish_reason = getattr(choice, "finish_reason", "unknown")
+            raise RuntimeError(f"OpenRouter response empty. Finish reason: {finish_reason}")
+        usage = response.usage
+        metadata = {
+            "provider": self.provider_name,
+            "model": self.model,
+            "input_tokens": getattr(usage, "prompt_tokens", None) if usage else None,
+            "output_tokens": getattr(usage, "completion_tokens", None) if usage else None,
+        }
+        return text, metadata
+
+
 # ─────────────────────────────────────────────
 # PROVIDER FACTORY
 # ─────────────────────────────────────────────
@@ -321,12 +380,14 @@ PROVIDERS = {
     "claude": ClaudeProvider,
     "openai": OpenAIProvider,
     "gemini": GeminiProvider,
+    "openrouter": OpenRouterProvider,
 }
 
 DEFAULT_MODELS = {
     "claude": "claude-sonnet-4-6",
     "openai": "gpt-4o",
     "gemini": "gemini-2.0-flash",
+    "openrouter": "google/gemini-3-flash-preview",
 }
 
 def get_provider(provider_name: str, model: str) -> LLMProvider:
@@ -765,7 +826,8 @@ Examples:
                              "choice_0..choice_3, label, correct_answer)")
     parser.add_argument("--output", required=True,
                         help="Path to output JSON file")
-    parser.add_argument("--provider", required=True, choices=["claude", "openai", "gemini"],
+    parser.add_argument("--provider", required=True,
+                        choices=["claude", "openai", "gemini", "openrouter"],
                         help="LLM provider to use for generation")
     parser.add_argument("--model", default=None,
                         help="Model name (defaults: claude-sonnet-4-6 / gpt-4o / gemini-2.0-flash)")
