@@ -1,0 +1,330 @@
+{
+  "model": "bert-base-uncased",
+  "timestamp": "2026-05-09T16:02:32.156548",
+  "device": "mps",
+  "hyperparameters": {
+    "epochs": 5,
+    "batch_size": 16,
+    "learning_rate": 2e-05,
+    "max_length": 128,
+    "patience": 2
+  },
+  "training_log": [
+    {
+      "epoch": 1,
+      "train_loss": 0.6443761390775947,
+      "train_f1": 0.21893491124260356,
+      "val_loss": 0.6500806568021124,
+      "val_f1": 0.3422459893048128
+    },
+    {
+      "epoch": 2,
+      "train_loss": 0.488008646495735,
+      "train_f1": 0.5013927576601671,
+      "val_loss": 1.4077148640909316,
+      "val_f1": 0.06521739130434782
+    },
+    {
+      "epoch": 3,
+      "train_loss": 0.35687816206768347,
+      "train_f1": 0.7303543913713405,
+      "val_loss": 1.1993398036998273,
+      "val_f1": 0.272
+    }
+  ],
+  "test_results": {
+    "metrics": {
+      "f1": 0.3050847457627119,
+      "precision": 0.2727272727272727,
+      "recall": 0.34615384615384615,
+      "accuracy": 0.7892030848329049,
+      "roc_auc": 0.6560859392832686,
+      "fpr": 0.142433234421365
+    },
+    "confidence_intervals": {
+      "f1": {
+        "lower": 0.229055780178223,
+        "upper": 0.3783839394950506
+      },
+      "precision": {
+        "lower": 0.1981981981981982,
+        "upper": 0.34970909090909086
+      },
+      "recall": {
+        "lower": 0.2553087192323738,
+        "upper": 0.44447194719471944
+      },
+      "accuracy": {
+        "lower": 0.7570372750642673,
+        "upper": 0.8174807197943444
+      },
+      "roc_auc": {
+        "lower": 0.5974169535024882,
+        "upper": 0.7152559719124278
+      }
+    },
+    "confusion_matrix": [
+      [
+        578,
+        96
+      ],
+      [
+        68,
+        36
+      ]
+    ],
+    "classification_report": "              precision    recall  f1-score   support\n\n        HOLD       0.89      0.86      0.88       674\n        FLIP       0.27      0.35      0.31       104\n\n    accuracy                           0.79       778\n   macro avg       0.58      0.60      0.59       778\nweighted avg       0.81      0.79      0.80       778\n"
+  },
+  "top_tokens": [
+    {
+      "token": "mankind",
+      "mean": 0.4194013997912407,
+      "count": 4
+    },
+    {
+      "token": "nutrition",
+      "mean": 0.2255025152117014,
+      "count": 4
+    },
+    {
+      "token": "insulin",
+      "mean": 0.18306640315462241,
+      "count": 22
+    },
+    {
+      "token": "harmful",
+      "mean": 0.1763496132833617,
+      "count": 7
+    },
+    {
+      "token": "invented",
+      "mean": 0.1760619394481182,
+      "count": 3
+    },
+    {
+      "token": "cities",
+      "mean": 0.16543078670899072,
+      "count": 3
+    },
+    {
+      "token": "day",
+      "mean": 0.1499260663986206,
+      "count": 3
+    },
+    {
+      "token": "internet",
+      "mean": 0.1488256800919771,
+      "count": 5
+    },
+    {
+      "token": "diet",
+      "mean": 0.14314050525426864,
+      "count": 5
+    },
+    {
+      "token": "health",
+      "mean": 0.13074288268884024,
+      "count": 3
+    },
+    {
+      "token": "seattle",
+      "mean": 0.12126588486135007,
+      "count": 10
+    },
+    {
+      "token": "sugar",
+      "mean": 0.12073498405516148,
+      "count": 8
+    },
+    {
+      "token": "american",
+      "mean": 0.10748126357793808,
+      "count": 4
+    },
+    {
+      "token": "weight",
+      "mean": 0.1059164231022199,
+      "count": 3
+    },
+    {
+      "token": "electronics",
+      "mean": 0.09831354841589927,
+      "count": 5
+    },
+    {
+      "token": "city",
+      "mean": 0.09770379588007927,
+      "count": 5
+    },
+    {
+      "token": "doses",
+      "mean": 0.0965750579489395,
+      "count": 8
+    },
+    {
+      "token": "causes",
+      "mean": 0.09024816378951073,
+      "count": 4
+    },
+    {
+      "token": "fat",
+      "mean": 0.07637264041437043,
+      "count": 9
+    },
+    {
+      "token": "luck",
+      "mean": 0.0728244458635648,
+      "count": 3
+    },
+    {
+      "token": "technology",
+      "mean": 0.06810394674539566,
+      "count": 3
+    },
+    {
+      "token": "reducing",
+      "mean": 0.05645162854343653,
+      "count": 5
+    },
+    {
+      "token": "literally",
+      "mean": 0.05154125113040209,
+      "count": 8
+    },
+    {
+      "token": "man",
+      "mean": 0.05106529065718254,
+      "count": 6
+    },
+    {
+      "token": "first",
+      "mean": 0.0508786424373587,
+      "count": 3
+    },
+    {
+      "token": "answer",
+      "mean": 0.04533419932704419,
+      "count": 16
+    },
+    {
+      "token": "ms",
+      "mean": 0.045193235576152804,
+      "count": 5
+    },
+    {
+      "token": "literature",
+      "mean": 0.04489914079507192,
+      "count": 3
+    },
+    {
+      "token": "body",
+      "mean": 0.04388762097805739,
+      "count": 5
+    },
+    {
+      "token": "scientific",
+      "mean": 0.04336080478074459,
+      "count": 13
+    },
+    {
+      "token": "research",
+      "mean": 0.041812751974378316,
+      "count": 7
+    },
+    {
+      "token": "dietary",
+      "mean": 0.041434901456038155,
+      "count": 3
+    },
+    {
+      "token": "diabetes",
+      "mean": 0.04115941383255025,
+      "count": 6
+    },
+    {
+      "token": "bs",
+      "mean": 0.03817834154787389,
+      "count": 11
+    },
+    {
+      "token": "studies",
+      "mean": 0.037568208575248715,
+      "count": 5
+    },
+    {
+      "token": "household",
+      "mean": 0.03635222278535366,
+      "count": 5
+    },
+    {
+      "token": "since",
+      "mean": 0.03501125960610807,
+      "count": 4
+    },
+    {
+      "token": "here",
+      "mean": 0.03488618019036949,
+      "count": 6
+    },
+    {
+      "token": "any",
+      "mean": 0.03392162192612887,
+      "count": 5
+    },
+    {
+      "token": "affordable",
+      "mean": 0.033406603476032616,
+      "count": 5
+    },
+    {
+      "token": "so",
+      "mean": 0.030976012083036557,
+      "count": 7
+    },
+    {
+      "token": "proven",
+      "mean": 0.03066548053175211,
+      "count": 16
+    },
+    {
+      "token": "people",
+      "mean": 0.030235891851286095,
+      "count": 3
+    },
+    {
+      "token": "you",
+      "mean": 0.029986035835463554,
+      "count": 24
+    },
+    {
+      "token": "pounds",
+      "mean": 0.029358196631073953,
+      "count": 5
+    },
+    {
+      "token": "become",
+      "mean": 0.028175538095335167,
+      "count": 3
+    },
+    {
+      "token": "shed",
+      "mean": 0.026523699751123786,
+      "count": 4
+    },
+    {
+      "token": "incorrect",
+      "mean": 0.02580451623847087,
+      "count": 3
+    },
+    {
+      "token": "response",
+      "mean": 0.024045836995355785,
+      "count": 4
+    },
+    {
+      "token": "works",
+      "mean": 0.02252456738746592,
+      "count": 7
+    }
+  ]
+}
