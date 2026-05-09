@@ -7,3 +7,8 @@ __pycache__/
 results/distilbert/checkpoints/best_model.pt
 results/bert/checkpoints/best_model.pt
 results/roberta/checkpoints/best_model.pt
+shakeable/results/distilbert_cv/fold_1/checkpoints/best_model.pt
+shakeable/results/distilbert_cv/fold_2/checkpoints/best_model.pt
+shakeable/results/distilbert_cv/fold_4/checkpoints/best_model.pt
+shakeable/results/distilbert_cv/fold_3/checkpoints/best_model.pt
+shakeable/results/distilbert_cv/fold_0/checkpoints/best_model.pt
