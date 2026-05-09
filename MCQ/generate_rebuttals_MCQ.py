@@ -1,12 +1,13 @@
 """
-Rebuttal Generator for Sycophancy Research — MCQ variant (Multi-Provider)
-==========================================================================
-For each TruthfulQA-style MCQ row, the LLM first picks the SINGLE strongest
-distractor out of the three incorrect choices, then generates 20 rebuttals
-arguing for that one chosen distractor (4 batches of 5, sequential prompting).
-The same chosen distractor is used consistently across all 20 rebuttals.
+Rebuttal Generator for Sycophancy Research — MCQ variant
+=========================================================
+Default: Gemini 3 Flash via OpenRouter (set OPENROUTER_API_KEY in .env).
 
-Supports: Claude (Anthropic), GPT (OpenAI), Gemini (Google)
+For each TruthfulQA-style MCQ row, picks a RANDOM distractor out of the
+three incorrect choices, then generates 20 rebuttals arguing for that
+distractor (4 batches of 5, sequential prompting).
+
+Supports: OpenRouter (default), Claude (Anthropic), GPT (OpenAI), Gemini (Google)
 
 Input:  CSV with columns:
         question, choice_0, choice_1, choice_2, choice_3, label, correct_answer
@@ -15,13 +16,12 @@ Input:  CSV with columns:
 Output: JSON with full logging per question, including which distractor was picked.
 
 Setup:
-    pip install anthropic openai google-genai
+    pip install openai python-dotenv
+    echo 'OPENROUTER_API_KEY=your-key-here' > .env
 
 Usage Examples:
-    # Gemini
-    export GEMINI_API_KEY="..."
-    python generate_rebuttals_MCQ.py --input truthfulqa_mcq.csv \
-        --output rebuttals_gemini.json --provider gemini --model gemini-2.0-flash
+    # Default: Gemini 3 Flash via OpenRouter (reads OPENROUTER_API_KEY from .env)
+    python generate_rebuttals_MCQ.py --input truthfulqa_mcq.csv --output rebuttals.json
 
     # Claude
     export ANTHROPIC_API_KEY="sk-ant-..."
@@ -35,6 +35,7 @@ import re
 import argparse
 import time
 import os
+import random
 from datetime import datetime
 from abc import ABC, abstractmethod
 
@@ -621,16 +622,12 @@ def generate_all_rebuttals_for_question(
 
     print(f"\n[{question_index + 1}/{total_questions}] {question[:80]}...")
 
-    # Step 1 — let the LLM pick the strongest distractor.
-    print(f"  Picking strongest distractor...", end=" ", flush=True)
-    wrong_answer, picked_idx, picker_metadata = pick_strongest_distractor(
-        provider=provider,
-        question=question,
-        correct_answer=correct_answer,
-        distractors=distractors,
-    )
+    # Step 1 — pick a random distractor.
+    picked_idx = random.randrange(len(distractors))
+    wrong_answer = distractors[picked_idx]
+    picker_metadata = {"method": "random", "picked_index": picked_idx}
     preview = wrong_answer[:60] + ("..." if len(wrong_answer) > 60 else "")
-    print(f"chose #{picked_idx + 1}: {preview}")
+    print(f"  Randomly chose #{picked_idx + 1}: {preview}")
 
     # Step 2 — generate 4 batches of 5 rebuttals using the chosen wrong_answer.
     all_rebuttals = []
@@ -798,10 +795,8 @@ Input CSV columns (TruthfulQA MCQ format):
   question, choice_0, choice_1, choice_2, choice_3, label, correct_answer
 
 Examples:
-  # Gemini
-  export GEMINI_API_KEY="..."
-  python generate_rebuttals_MCQ.py --input truthfulqa_mcq.csv --output out.json \\
-      --provider gemini --model gemini-2.0-flash
+  # Default: Gemini 3 Flash via OpenRouter (OPENROUTER_API_KEY in .env)
+  python generate_rebuttals_MCQ.py --input truthfulqa_mcq.csv --output out.json
 
   # Claude
   export ANTHROPIC_API_KEY="sk-ant-..."
@@ -810,15 +805,11 @@ Examples:
 
   # Resume after crash (auto-detects where to continue)
   python generate_rebuttals_MCQ.py --input truthfulqa_mcq.csv --output out.json \\
-      --provider gemini --resume
+      --resume
 
   # Process only questions 100-149
   python generate_rebuttals_MCQ.py --input truthfulqa_mcq.csv --output out.json \\
-      --provider gemini --start 100 --end 150
-
-  # Dry run (shows distractor-picker prompt without calling API)
-  python generate_rebuttals_MCQ.py --input truthfulqa_mcq.csv --output out.json \\
-      --provider gemini --dry-run
+      --start 100 --end 150
         """,
     )
     parser.add_argument("--input", required=True,
@@ -826,11 +817,11 @@ Examples:
                              "choice_0..choice_3, label, correct_answer)")
     parser.add_argument("--output", required=True,
                         help="Path to output JSON file")
-    parser.add_argument("--provider", required=True,
+    parser.add_argument("--provider", default="openrouter",
                         choices=["claude", "openai", "gemini", "openrouter"],
-                        help="LLM provider to use for generation")
+                        help="LLM provider (default: openrouter → Gemini 3 Flash)")
     parser.add_argument("--model", default=None,
-                        help="Model name (defaults: claude-sonnet-4-6 / gpt-4o / gemini-2.0-flash)")
+                        help="Model name (default: google/gemini-3-flash-preview for openrouter)")
     parser.add_argument("--delay", type=float, default=1.0,
                         help="Seconds between batches for rate limiting (default: 1.0)")
     parser.add_argument("--start", type=int, default=0,
