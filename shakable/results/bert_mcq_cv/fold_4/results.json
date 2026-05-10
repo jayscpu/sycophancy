@@ -1,0 +1,96 @@
+{
+  "fold": 4,
+  "model": "bert-base-uncased",
+  "timestamp": "2026-05-11T00:26:17.481362",
+  "device": "mps",
+  "input_files": [
+    "../MCQ/MCQ_MERGED_DATASET.json"
+  ],
+  "hyperparameters": {
+    "epochs": 5,
+    "batch_size": 16,
+    "learning_rate": 2e-05,
+    "max_length": 256,
+    "patience": 2
+  },
+  "training_log": [
+    {
+      "epoch": 1,
+      "train_loss": 0.6961717515863398,
+      "train_f1": 0.5571884984025559,
+      "val_loss": 0.6985330792034373,
+      "val_f1": 0.5714285714285714
+    },
+    {
+      "epoch": 2,
+      "train_loss": 0.6004244771695906,
+      "train_f1": 0.6300246103363413,
+      "val_loss": 0.7446831710198346,
+      "val_f1": 0.5779467680608364
+    },
+    {
+      "epoch": 3,
+      "train_loss": 0.43615305904419194,
+      "train_f1": 0.7905951506245408,
+      "val_loss": 0.8456697902258705,
+      "val_f1": 0.5176470588235295
+    },
+    {
+      "epoch": 4,
+      "train_loss": 0.2792685374777804,
+      "train_f1": 0.894776684330053,
+      "val_loss": 0.9239825834246242,
+      "val_f1": 0.580952380952381
+    },
+    {
+      "epoch": 5,
+      "train_loss": 0.19279404777672984,
+      "train_f1": 0.9342507645259939,
+      "val_loss": 0.9966641217470169,
+      "val_f1": 0.5951219512195122
+    }
+  ],
+  "test_results": {
+    "metrics": {
+      "f1": 0.5377358490566038,
+      "precision": 0.5876288659793815,
+      "recall": 0.4956521739130435,
+      "accuracy": 0.5958762886597938,
+      "roc_auc": 0.6107075873827792,
+      "fpr": 0.3137254901960784
+    },
+    "confidence_intervals": {
+      "f1": {
+        "lower": 0.48174991401383427,
+        "upper": 0.5954617988394584
+      },
+      "precision": {
+        "lower": 0.5219512195121951,
+        "upper": 0.6567557938948474
+      },
+      "recall": {
+        "lower": 0.4343784683684795,
+        "upper": 0.5607031072621712
+      },
+      "accuracy": {
+        "lower": 0.554639175257732,
+        "upper": 0.6412371134020619
+      },
+      "roc_auc": {
+        "lower": 0.5616224685953191,
+        "upper": 0.6590833558548688
+      }
+    },
+    "confusion_matrix": [
+      [
+        175,
+        80
+      ],
+      [
+        116,
+        114
+      ]
+    ],
+    "classification_report": "              precision    recall  f1-score   support\n\n        HOLD       0.60      0.69      0.64       255\n        FLIP       0.59      0.50      0.54       230\n\n    accuracy                           0.60       485\n   macro avg       0.59      0.59      0.59       485\nweighted avg       0.59      0.60      0.59       485\n"
+  }
+}

@@ -1,0 +1,82 @@
+{
+  "fold": 2,
+  "model": "distilbert-base-uncased",
+  "timestamp": "2026-05-10T22:47:03.039644",
+  "device": "mps",
+  "input_files": [
+    "../MCQ/MCQ_MERGED_DATASET.json"
+  ],
+  "hyperparameters": {
+    "epochs": 5,
+    "batch_size": 16,
+    "learning_rate": 2e-05,
+    "max_length": 256,
+    "patience": 2
+  },
+  "training_log": [
+    {
+      "epoch": 1,
+      "train_loss": 0.6627018056353744,
+      "train_f1": 0.5602739726027397,
+      "val_loss": 0.6981959957629442,
+      "val_f1": 0.5977859778597786
+    },
+    {
+      "epoch": 2,
+      "train_loss": 0.5485597815440626,
+      "train_f1": 0.7180192572214581,
+      "val_loss": 0.7499103490263224,
+      "val_f1": 0.5142857142857142
+    },
+    {
+      "epoch": 3,
+      "train_loss": 0.4565205093549222,
+      "train_f1": 0.7820069204152249,
+      "val_loss": 0.8023524861782789,
+      "val_f1": 0.5478260869565217
+    }
+  ],
+  "test_results": {
+    "metrics": {
+      "f1": 0.5945945945945946,
+      "precision": 0.48639455782312924,
+      "recall": 0.7647058823529411,
+      "accuracy": 0.5278450363196125,
+      "roc_auc": 0.5959964033883868,
+      "fpr": 0.668141592920354
+    },
+    "confidence_intervals": {
+      "f1": {
+        "lower": 0.5434627329192546,
+        "upper": 0.6415843774642951
+      },
+      "precision": {
+        "lower": 0.4318160852063066,
+        "upper": 0.540006711409396
+      },
+      "recall": {
+        "lower": 0.7026992376992377,
+        "upper": 0.8231958590190297
+      },
+      "accuracy": {
+        "lower": 0.4794188861985472,
+        "upper": 0.5714285714285714
+      },
+      "roc_auc": {
+        "lower": 0.5399301196664491,
+        "upper": 0.6511070008684088
+      }
+    },
+    "confusion_matrix": [
+      [
+        75,
+        151
+      ],
+      [
+        44,
+        143
+      ]
+    ],
+    "classification_report": "              precision    recall  f1-score   support\n\n        HOLD       0.63      0.33      0.43       226\n        FLIP       0.49      0.76      0.59       187\n\n    accuracy                           0.53       413\n   macro avg       0.56      0.55      0.51       413\nweighted avg       0.57      0.53      0.51       413\n"
+  }
+}
