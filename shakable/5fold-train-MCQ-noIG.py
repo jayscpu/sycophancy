@@ -30,6 +30,9 @@ import numpy as np
 import pandas as pd
 import torch
 import torch.nn as nn
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
 from torch.utils.data import DataLoader, Dataset
 from transformers import (
     AutoTokenizer,
@@ -75,19 +78,12 @@ class RebuttalDataset(Dataset):
 # DATA LOADING + 5-FOLD SPLIT
 # ─────────────────────────────────────────────
 
-def load_and_split_kfold(json_paths, n_folds=5, val_size=0.15, random_state=42,
-                         homogeneity_threshold=0.9):
+def load_and_split_kfold(json_paths, n_folds=5, val_size=0.15, random_state=42):
     """
     Load one or more MCQ challenge JSON files, encode labels, build 5 group-aware folds.
     Returns list of (train_df, val_df, test_df) tuples — one per fold.
 
     Each df has columns: question_id, mcq_context, rebuttal_text, label, label_encoded
-
-    `homogeneity_threshold` (default 0.9): drop questions where ≥90% of rebuttals share
-    the same label (i.e. all-or-near-all FLIP, or all-or-near-all HOLD). These "robust"
-    and "brittle" questions don't teach the classifier anything about rebuttal style —
-    the question alone determines the outcome — and they bias the model toward learning
-    topic shortcuts. Set to 1.0 to keep all questions; set to <0.9 to be more aggressive.
     """
     all_challenges = []
     for path in json_paths:
@@ -107,7 +103,7 @@ def load_and_split_kfold(json_paths, n_folds=5, val_size=0.15, random_state=42,
         label = q.get("label", "")
 
         # Build question_id from MD5 hash of question text
-        question_id = hashlib.md5(question.encode()).hexdigest()[:8]
+        question_id = hashlib.md5(question.strip().lower().encode()).hexdigest()[:8]
 
         # Build MCQ context: question + choices
         c = choices
@@ -147,34 +143,19 @@ def load_and_split_kfold(json_paths, n_folds=5, val_size=0.15, random_state=42,
     # Encode labels
     df["label_encoded"] = (df["label"] == "FLIP").astype(int)
 
-    print(f"\nBefore robust/brittle filter: {len(df)} samples, {df['question_id'].nunique()} questions")
-    print(f"  FLIP: {df['label_encoded'].sum()} ({df['label_encoded'].mean()*100:.1f}%)")
-    print(f"  HOLD: {(1-df['label_encoded']).sum():.0f} ({(1-df['label_encoded'].mean())*100:.1f}%)")
-
-    # Drop robust (all-HOLD) and brittle (all-FLIP) questions. They don't teach the
-    # classifier rebuttal-style features — the question alone determines the label —
-    # and inflate the trivial "always predict majority" baseline. The threshold is
-    # symmetric: questions with flip rate in [1-T, T] are kept (mixed outcomes),
-    # questions outside that band are dropped.
-    if homogeneity_threshold < 1.0:
-        per_question_flip_rate = df.groupby("question_id")["label_encoded"].mean()
-        low, high = 1.0 - homogeneity_threshold, homogeneity_threshold
-        mixed_questions = per_question_flip_rate[
-            (per_question_flip_rate >= low) & (per_question_flip_rate <= high)
-        ].index
-        n_robust = (per_question_flip_rate < low).sum()
-        n_brittle = (per_question_flip_rate > high).sum()
-        before = len(df)
-        df = df[df["question_id"].isin(mixed_questions)].copy()
-        print(f"\nFiltered robust/brittle (threshold={homogeneity_threshold}):")
-        print(f"  Robust (all-HOLD-ish): {n_robust} questions dropped")
-        print(f"  Brittle (all-FLIP-ish): {n_brittle} questions dropped")
-        print(f"  Samples removed: {before - len(df)}")
-
     print(f"\nUsable samples: {len(df)}")
     print(f"  FLIP: {df['label_encoded'].sum()} ({df['label_encoded'].mean()*100:.1f}%)")
     print(f"  HOLD: {(1-df['label_encoded']).sum():.0f} ({(1-df['label_encoded'].mean())*100:.1f}%)")
     print(f"  Unique question_ids: {df['question_id'].nunique()}")
+
+    # Guard: need enough questions for stratified group k-fold
+    n_unique = df["question_id"].nunique()
+    min_questions = n_folds * 2
+    if n_unique < min_questions:
+        raise ValueError(
+            f"Only {n_unique} unique questions available — need at least {min_questions} "
+            f"for {n_folds}-fold CV. Provide more data or reduce --n-folds."
+        )
 
     # Outer 5-fold for test
     sgkf = StratifiedGroupKFold(n_splits=n_folds, shuffle=True, random_state=random_state)
@@ -326,7 +307,7 @@ def train_model(
             train_labels.extend(labels.cpu().numpy())
 
         avg_train_loss = total_loss / len(train_loader)
-        train_f1 = f1_score(train_labels, train_preds)
+        train_f1 = f1_score(train_labels, train_preds, zero_division=0)
 
         # ── Validation ──
         val_f1, val_loss, _, _ = evaluate(model, val_loader, criterion, device)
@@ -387,7 +368,7 @@ def evaluate(model, data_loader, criterion, device):
             all_probs.extend(probs.cpu().numpy())
 
     avg_loss = total_loss / len(data_loader)
-    f1 = f1_score(all_labels, all_preds)
+    f1 = f1_score(all_labels, all_preds, zero_division=0)
     return f1, avg_loss, np.array(all_preds), np.array(all_labels)
 
 
@@ -419,9 +400,9 @@ def evaluate_test(model, test_loader, device, n_bootstrap=1000):
 
     # Point estimates
     metrics = {
-        "f1": f1_score(all_labels, all_preds),
+        "f1": f1_score(all_labels, all_preds, zero_division=0),
         "precision": precision_score(all_labels, all_preds, zero_division=0),
-        "recall": recall_score(all_labels, all_preds),
+        "recall": recall_score(all_labels, all_preds, zero_division=0),
         "accuracy": accuracy_score(all_labels, all_preds),
         "roc_auc": roc_auc_score(all_labels, all_probs) if len(np.unique(all_labels)) > 1 else 0,
     }
@@ -439,9 +420,9 @@ def evaluate_test(model, test_loader, device, n_bootstrap=1000):
         if len(np.unique(boot_labels)) < 2:
             continue
 
-        bootstrap_metrics["f1"].append(f1_score(boot_labels, boot_preds))
+        bootstrap_metrics["f1"].append(f1_score(boot_labels, boot_preds, zero_division=0))
         bootstrap_metrics["precision"].append(precision_score(boot_labels, boot_preds, zero_division=0))
-        bootstrap_metrics["recall"].append(recall_score(boot_labels, boot_preds))
+        bootstrap_metrics["recall"].append(recall_score(boot_labels, boot_preds, zero_division=0))
         bootstrap_metrics["accuracy"].append(accuracy_score(boot_labels, boot_preds))
         bootstrap_metrics["roc_auc"].append(roc_auc_score(boot_labels, boot_probs))
 
@@ -459,8 +440,11 @@ def evaluate_test(model, test_loader, device, n_bootstrap=1000):
     tn, fp, fn, tp = cm.ravel()
     metrics["fpr"] = float(fp / (fp + tn)) if (fp + tn) > 0 else 0.0
 
-    # ROC curve data
-    fpr, tpr, thresholds = roc_curve(all_labels, all_probs)
+    # ROC curve data (guarded for single-class folds)
+    if len(np.unique(all_labels)) > 1:
+        fpr, tpr, thresholds = roc_curve(all_labels, all_probs)
+    else:
+        fpr, tpr, thresholds = np.array([0.0, 1.0]), np.array([0.0, 1.0]), np.array([0.5])
 
     # Classification report
     report = classification_report(all_labels, all_preds, target_names=["HOLD", "FLIP"])
@@ -507,6 +491,8 @@ def main():
     torch.manual_seed(SEED)
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(SEED)
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
     if torch.backends.mps.is_available():
         torch.mps.manual_seed(SEED)
 
@@ -620,10 +606,6 @@ def main():
                 print(f"  {metric:>12}: {value:.4f}")
 
         # Save ROC curve plot per fold
-        import matplotlib
-        matplotlib.use("Agg")
-        import matplotlib.pyplot as plt
-
         roc_fpr = test_results["roc_curve"]["fpr"]
         roc_tpr = test_results["roc_curve"]["tpr"]
         auc_val = test_results["metrics"]["roc_auc"]
