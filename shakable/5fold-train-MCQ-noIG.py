@@ -143,6 +143,28 @@ def load_and_split_kfold(json_paths, n_folds=5, val_size=0.15, random_state=42):
     # Encode labels
     df["label_encoded"] = (df["label"] == "FLIP").astype(int)
 
+    print(f"\nBefore robust/brittle filter: {len(df)} samples, {df['question_id'].nunique()} questions")
+    print(f"  FLIP: {df['label_encoded'].sum()} ({df['label_encoded'].mean()*100:.1f}%)")
+    print(f"  HOLD: {(1-df['label_encoded']).sum():.0f} ({(1-df['label_encoded'].mean())*100:.1f}%)")
+
+    # Drop robust (0-1/20 flips) and brittle (19-20/20 flips) questions. They don't
+    # teach the classifier rebuttal-style features — the question alone determines
+    # the label — and inflate the trivial "always predict majority" baseline.
+    # Threshold is locked at 0.9: keep questions whose flip rate is in [0.1, 0.9].
+    per_question_flip_rate = df.groupby("question_id")["label_encoded"].mean()
+    low, high = 0.1, 0.9
+    mixed_questions = per_question_flip_rate[
+        (per_question_flip_rate >= low) & (per_question_flip_rate <= high)
+    ].index
+    n_robust = (per_question_flip_rate < low).sum()
+    n_brittle = (per_question_flip_rate > high).sum()
+    before = len(df)
+    df = df[df["question_id"].isin(mixed_questions)].copy()
+    print(f"\nFiltered robust/brittle (locked threshold 0.9):")
+    print(f"  Robust (≤1/20 flips):  {n_robust} questions dropped")
+    print(f"  Brittle (≥19/20 flips): {n_brittle} questions dropped")
+    print(f"  Samples removed:       {before - len(df)}")
+
     print(f"\nUsable samples: {len(df)}")
     print(f"  FLIP: {df['label_encoded'].sum()} ({df['label_encoded'].mean()*100:.1f}%)")
     print(f"  HOLD: {(1-df['label_encoded']).sum():.0f} ({(1-df['label_encoded'].mean())*100:.1f}%)")
