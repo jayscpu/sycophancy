@@ -75,12 +75,19 @@ class RebuttalDataset(Dataset):
 # DATA LOADING + 5-FOLD SPLIT
 # ─────────────────────────────────────────────
 
-def load_and_split_kfold(json_paths, n_folds=5, val_size=0.15, random_state=42):
+def load_and_split_kfold(json_paths, n_folds=5, val_size=0.15, random_state=42,
+                         homogeneity_threshold=0.9):
     """
     Load one or more MCQ challenge JSON files, encode labels, build 5 group-aware folds.
     Returns list of (train_df, val_df, test_df) tuples — one per fold.
 
     Each df has columns: question_id, mcq_context, rebuttal_text, label, label_encoded
+
+    `homogeneity_threshold` (default 0.9): drop questions where ≥90% of rebuttals share
+    the same label (i.e. all-or-near-all FLIP, or all-or-near-all HOLD). These "robust"
+    and "brittle" questions don't teach the classifier anything about rebuttal style —
+    the question alone determines the outcome — and they bias the model toward learning
+    topic shortcuts. Set to 1.0 to keep all questions; set to <0.9 to be more aggressive.
     """
     all_challenges = []
     for path in json_paths:
@@ -140,6 +147,30 @@ def load_and_split_kfold(json_paths, n_folds=5, val_size=0.15, random_state=42):
     # Encode labels
     df["label_encoded"] = (df["label"] == "FLIP").astype(int)
 
+    print(f"\nBefore robust/brittle filter: {len(df)} samples, {df['question_id'].nunique()} questions")
+    print(f"  FLIP: {df['label_encoded'].sum()} ({df['label_encoded'].mean()*100:.1f}%)")
+    print(f"  HOLD: {(1-df['label_encoded']).sum():.0f} ({(1-df['label_encoded'].mean())*100:.1f}%)")
+
+    # Drop robust (all-HOLD) and brittle (all-FLIP) questions. They don't teach the
+    # classifier rebuttal-style features — the question alone determines the label —
+    # and inflate the trivial "always predict majority" baseline. The threshold is
+    # symmetric: questions with flip rate in [1-T, T] are kept (mixed outcomes),
+    # questions outside that band are dropped.
+    if homogeneity_threshold < 1.0:
+        per_question_flip_rate = df.groupby("question_id")["label_encoded"].mean()
+        low, high = 1.0 - homogeneity_threshold, homogeneity_threshold
+        mixed_questions = per_question_flip_rate[
+            (per_question_flip_rate >= low) & (per_question_flip_rate <= high)
+        ].index
+        n_robust = (per_question_flip_rate < low).sum()
+        n_brittle = (per_question_flip_rate > high).sum()
+        before = len(df)
+        df = df[df["question_id"].isin(mixed_questions)].copy()
+        print(f"\nFiltered robust/brittle (threshold={homogeneity_threshold}):")
+        print(f"  Robust (all-HOLD-ish): {n_robust} questions dropped")
+        print(f"  Brittle (all-FLIP-ish): {n_brittle} questions dropped")
+        print(f"  Samples removed: {before - len(df)}")
+
     print(f"\nUsable samples: {len(df)}")
     print(f"  FLIP: {df['label_encoded'].sum()} ({df['label_encoded'].mean()*100:.1f}%)")
     print(f"  HOLD: {(1-df['label_encoded']).sum():.0f} ({(1-df['label_encoded'].mean())*100:.1f}%)")
@@ -196,12 +227,20 @@ def load_and_split_kfold(json_paths, n_folds=5, val_size=0.15, random_state=42):
 # ─────────────────────────────────────────────
 
 def tokenize_data(tokenizer, texts_a, texts_b, max_length=256):
-    """Tokenize MCQ context + rebuttal as a sentence pair."""
+    """Tokenize MCQ context + rebuttal as a sentence pair.
+
+    `truncation="only_first"` truncates the MCQ context (segment A) when needed
+    and preserves the rebuttal (segment B) intact. The rebuttal is the
+    feature-bearing signal for FLIP/HOLD; truncating its tail (e.g. a cited
+    source or final assertion) silently destroys signal. Default `truncation=True`
+    uses `longest_first`, which can eat into the rebuttal once the MCQ context
+    has been shortened to its length.
+    """
     return tokenizer(
         texts_a,
         texts_b,
         padding="max_length",
-        truncation=True,
+        truncation="only_first",
         max_length=max_length,
         return_tensors="pt",
     )
@@ -252,7 +291,10 @@ def train_model(
     warmup_steps = int(0.1 * total_steps)
     scheduler = get_linear_schedule_with_warmup(optimizer, warmup_steps, total_steps)
 
-    best_val_f1 = 0
+    # Init below 0 so the first epoch always saves a checkpoint, even in the
+    # degenerate case where val F1 stays at exactly 0 (otherwise no checkpoint
+    # is ever written and the post-train load_state_dict crashes).
+    best_val_f1 = -1.0
     patience_counter = 0
     training_log = []
 
@@ -265,11 +307,12 @@ def train_model(
         for batch in train_loader:
             optimizer.zero_grad()
 
-            input_ids = batch["input_ids"].to(device)
-            attention_mask = batch["attention_mask"].to(device)
+            # Forward all encoding keys (input_ids, attention_mask, and
+            # token_type_ids when the tokenizer produced them — needed for BERT).
             labels = batch["labels"].to(device)
+            model_inputs = {k: v.to(device) for k, v in batch.items() if k != "labels"}
 
-            outputs = model(input_ids=input_ids, attention_mask=attention_mask)
+            outputs = model(**model_inputs)
             loss = criterion(outputs.logits, labels)
 
             loss.backward()
@@ -329,11 +372,10 @@ def evaluate(model, data_loader, criterion, device):
 
     with torch.no_grad():
         for batch in data_loader:
-            input_ids = batch["input_ids"].to(device)
-            attention_mask = batch["attention_mask"].to(device)
             labels = batch["labels"].to(device)
+            model_inputs = {k: v.to(device) for k, v in batch.items() if k != "labels"}
 
-            outputs = model(input_ids=input_ids, attention_mask=attention_mask)
+            outputs = model(**model_inputs)
             loss = criterion(outputs.logits, labels)
             total_loss += loss.item()
 
@@ -360,11 +402,10 @@ def evaluate_test(model, test_loader, device, n_bootstrap=1000):
 
     with torch.no_grad():
         for batch in test_loader:
-            input_ids = batch["input_ids"].to(device)
-            attention_mask = batch["attention_mask"].to(device)
             labels = batch["labels"].to(device)
+            model_inputs = {k: v.to(device) for k, v in batch.items() if k != "labels"}
 
-            outputs = model(input_ids=input_ids, attention_mask=attention_mask)
+            outputs = model(**model_inputs)
             probs = torch.softmax(outputs.logits, dim=1)[:, 1]
             preds = torch.argmax(outputs.logits, dim=1)
 
@@ -412,8 +453,9 @@ def evaluate_test(model, test_loader, device, n_bootstrap=1000):
                 "upper": float(np.percentile(values, 97.5)),
             }
 
-    # Confusion matrix
-    cm = confusion_matrix(all_labels, all_preds)
+    # Confusion matrix — force 2x2 layout even if a fold goes single-class
+    # (otherwise cm collapses to 1x1 and the ravel unpack crashes).
+    cm = confusion_matrix(all_labels, all_preds, labels=[0, 1])
     tn, fp, fn, tp = cm.ravel()
     metrics["fpr"] = float(fp / (fp + tn)) if (fp + tn) > 0 else 0.0
 
