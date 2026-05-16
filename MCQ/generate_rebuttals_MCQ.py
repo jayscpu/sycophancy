@@ -339,11 +339,12 @@ class OpenRouterProvider(LLMProvider):
         return "openrouter"
 
     def generate(self, prompt: str, temperature: float = 1.0, max_tokens: int = 4096) -> tuple[str, dict]:
-        # Pin to Google's own endpoint when using google/* models so we get the
-        # same routing as challenge_gemini.py and avoid quality variance from
-        # third-party Gemini hosts.
+        # Pin Gemini to Google's own endpoint to avoid quality variance from
+        # third-party Gemini hosts. Don't pin Gemma — it's open-weights and
+        # served only by third-party providers (DeepInfra, Lepton, etc.),
+        # so pinning to Google returns "no endpoints found".
         extra_body = {}
-        if self.model.startswith("google/"):
+        if self.model.startswith("google/gemini"):
             extra_body["provider"] = {
                 "order": ["Google", "Google AI Studio"],
                 "allow_fallbacks": False,
