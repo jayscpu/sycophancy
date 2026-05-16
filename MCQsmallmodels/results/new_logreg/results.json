@@ -1,0 +1,279 @@
+{
+  "model": "logreg",
+  "timestamp": "2026-05-16T18:47:48.023805",
+  "device": "cpu",
+  "config": {
+    "n_outer_folds": 5,
+    "n_inner_folds": 3,
+    "n_trials": 30,
+    "seed": 42
+  },
+  "feature_names": [
+    "len_words",
+    "n_sentences",
+    "avg_word_len",
+    "n_question_marks",
+    "n_exclamations",
+    "n_commas",
+    "caps_ratio",
+    "starts_lower",
+    "has_digit",
+    "flesch_reading_ease",
+    "type_token_ratio",
+    "n_hedging",
+    "n_certainty",
+    "n_politeness",
+    "n_aggression",
+    "n_sources",
+    "n_anecdote",
+    "n_authority",
+    "n_command",
+    "discourse_contrast_markers",
+    "n_intensifiers",
+    "first_person_ratio",
+    "second_person_ratio",
+    "is_question_only",
+    "vader_pos",
+    "vader_neg",
+    "vader_compound",
+    "n_modals_certain",
+    "n_modals_uncertain",
+    "modal_uncertainty_ratio",
+    "modal_density",
+    "n_past_tense",
+    "n_present_tense",
+    "past_pres_ratio",
+    "n_nominalisations",
+    "nominalisation_rate",
+    "n_negations",
+    "n_clauses",
+    "clauses_per_sentence",
+    "mean_parse_depth",
+    "n_passive_aux",
+    "n_passive_subj",
+    "is_passive",
+    "n_subord_clauses",
+    "subord_rate",
+    "n_conjunctions",
+    "mean_sentence_len",
+    "sentence_len_var",
+    "sim_to_wrong",
+    "sim_margin_wrong_minus_correct"
+  ],
+  "n_features": 50,
+  "n_samples": 2823,
+  "n_questions": 150,
+  "class_balance_flip": 0.4410201912858661,
+  "cv_summary": {
+    "f1": {
+      "mean": 0.574711448102368,
+      "std": 0.025179540392909983,
+      "per_fold": [
+        0.5684210526315789,
+        0.5865209471766849,
+        0.5437262357414449,
+        0.6106032906764168,
+        0.5642857142857143
+      ]
+    },
+    "precision": {
+      "mean": 0.5411316739488402,
+      "std": 0.03660317786750717,
+      "per_fold": [
+        0.5152671755725191,
+        0.5609756097560976,
+        0.52,
+        0.5964285714285714,
+        0.512987012987013
+      ]
+    },
+    "recall": {
+      "mean": 0.6140960082022568,
+      "std": 0.025754054376025,
+      "per_fold": [
+        0.6338028169014085,
+        0.6145038167938931,
+        0.5697211155378487,
+        0.6254681647940075,
+        0.626984126984127
+      ]
+    },
+    "accuracy": {
+      "mean": 0.6001880386139603,
+      "std": 0.021469761359246817,
+      "per_fold": [
+        0.6252285191956124,
+        0.590990990990991,
+        0.5698924731182796,
+        0.6148282097649186,
+        0.6
+      ]
+    },
+    "roc_auc": {
+      "mean": 0.6356046827338041,
+      "std": 0.01257887231309217,
+      "per_fold": [
+        0.6468471507688849,
+        0.6259672250736004,
+        0.6186199826102755,
+        0.6451507294203922,
+        0.6414383257958677
+      ]
+    },
+    "fpr": {
+      "mean": 0.4108680771747462,
+      "std": 0.022275246504006956,
+      "per_fold": [
+        0.38023952095808383,
+        0.4300341296928328,
+        0.42996742671009774,
+        0.3951048951048951,
+        0.41899441340782123
+      ]
+    },
+    "best_inner_f1": {
+      "mean": 0.5594245073323695,
+      "std": 0.009711168231762865,
+      "per_fold": [
+        0.5563868950945104,
+        0.5476839457731872,
+        0.571421117158438,
+        0.5543976541035175,
+        0.5672329245321942
+      ]
+    }
+  },
+  "fold_results": [
+    {
+      "fold": 1,
+      "best_params": {
+        "C": 0.0745934328572655,
+        "penalty": "l1"
+      },
+      "best_inner_f1": 0.5563868950945104,
+      "f1": 0.5684210526315789,
+      "precision": 0.5152671755725191,
+      "recall": 0.6338028169014085,
+      "accuracy": 0.6252285191956124,
+      "roc_auc": 0.6468471507688849,
+      "fpr": 0.38023952095808383,
+      "confusion_matrix": [
+        [
+          207,
+          127
+        ],
+        [
+          78,
+          135
+        ]
+      ]
+    },
+    {
+      "fold": 2,
+      "best_params": {
+        "C": 0.00156144938376948,
+        "penalty": "l2"
+      },
+      "best_inner_f1": 0.5476839457731872,
+      "f1": 0.5865209471766849,
+      "precision": 0.5609756097560976,
+      "recall": 0.6145038167938931,
+      "accuracy": 0.590990990990991,
+      "roc_auc": 0.6259672250736004,
+      "fpr": 0.4300341296928328,
+      "confusion_matrix": [
+        [
+          167,
+          126
+        ],
+        [
+          101,
+          161
+        ]
+      ]
+    },
+    {
+      "fold": 3,
+      "best_params": {
+        "C": 0.001310346942127747,
+        "penalty": "l2"
+      },
+      "best_inner_f1": 0.571421117158438,
+      "f1": 0.5437262357414449,
+      "precision": 0.52,
+      "recall": 0.5697211155378487,
+      "accuracy": 0.5698924731182796,
+      "roc_auc": 0.6186199826102755,
+      "fpr": 0.42996742671009774,
+      "confusion_matrix": [
+        [
+          175,
+          132
+        ],
+        [
+          108,
+          143
+        ]
+      ]
+    },
+    {
+      "fold": 4,
+      "best_params": {
+        "C": 0.008260808399079604,
+        "penalty": "l2"
+      },
+      "best_inner_f1": 0.5543976541035175,
+      "f1": 0.6106032906764168,
+      "precision": 0.5964285714285714,
+      "recall": 0.6254681647940075,
+      "accuracy": 0.6148282097649186,
+      "roc_auc": 0.6451507294203922,
+      "fpr": 0.3951048951048951,
+      "confusion_matrix": [
+        [
+          173,
+          113
+        ],
+        [
+          100,
+          167
+        ]
+      ]
+    },
+    {
+      "fold": 5,
+      "best_params": {
+        "C": 0.01050679049091695,
+        "penalty": "l2"
+      },
+      "best_inner_f1": 0.5672329245321942,
+      "f1": 0.5642857142857143,
+      "precision": 0.512987012987013,
+      "recall": 0.626984126984127,
+      "accuracy": 0.6,
+      "roc_auc": 0.6414383257958677,
+      "fpr": 0.41899441340782123,
+      "confusion_matrix": [
+        [
+          208,
+          150
+        ],
+        [
+          94,
+          158
+        ]
+      ]
+    }
+  ],
+  "oof_confusion_matrix": [
+    [
+      930,
+      648
+    ],
+    [
+      481,
+      764
+    ]
+  ],
+  "oof_roc_auc": 0.6360753533780242
+}
