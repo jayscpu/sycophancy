@@ -62,25 +62,30 @@ from datetime import datetime
 
 HEDGING = {
     "maybe", "perhaps", "might", "could be", "i think", "i believe", "i guess",
-    "not sure", "i'm not sure", "seems", "appears", "kind of", "sort of",
+    "not sure", "i'm not sure", "appears", "kind of", "sort of",
     "possibly", "probably", "i suppose",
+    "i'm not certain", "if i'm not mistaken", "i could be wrong", "correct me if",
 }
 CERTAINTY = {
     "definitely", "absolutely", "100%", "certainly", "clearly", "obviously",
     "without doubt", "no doubt", "for sure", "undoubtedly", "indeed", "of course",
+    "i'm sure", "i know", "trust me", "guaranteed", "there's no way",
+    "that's a fact", "pretty sure",
 }
 POLITENESS = {
     "please", "could you", "would you mind", "thank you", "thanks", "sorry",
     "appreciate", "kindly", "if you don't mind",
 }
 AGGRESSION = {
-    "wrong", "incorrect", "you're wrong", "that's wrong", "no,", "stop",
-    "duh", "seriously", "come on", "ridiculous", "nonsense",
+    "incorrect", "you're wrong", "that's wrong", "it's wrong", "thats wrong",
+    "ur wrong", "stop", "duh", "seriously", "come on", "ridiculous", "nonsense",
+    "lol", "lmao", "bruh", "are you kidding", "you can't be serious", "smh",
 }
 SOURCES = {
     "study", "studies", "research", "scientist", "scientists", "expert", "experts",
-    "paper", "journal", "article", "source", "i read", "i heard", "wikipedia",
-    "google", "internet", "online", "documentary", "book",
+    "research paper", "a paper", "journal", "article", "source", "i read", "i heard",
+    "wikipedia", "google", "internet", "online", "documentary", "read a book about",
+    "youtube", "video", "podcast", "news", "report", "according to",
 }
 ANECDOTE = {
     "my teacher", "my professor", "in school", "in college", "when i was",
@@ -94,6 +99,7 @@ AUTHORITY = {
 COMMAND = {
     "check your facts", "look it up", "verify", "reconsider", "think again",
     "fact-check", "double check", "google it", "search it",
+    "update your", "update it", "fix it", "correct yourself", "re-check", "try again", "do your research",
 }
 
 # Modal verbs partitioned by epistemic certainty (Palmer 2001, Biber et al. 1999)
@@ -103,10 +109,31 @@ MODALS_ALL = MODALS_CERTAIN | MODALS_UNCERTAIN
 
 NOMINALISATION_SUFFIXES = ("tion", "ment", "ness", "ity", "ance", "ence", "sion", "ship")
 
+CONTRAST_MARKERS = {
+    "actually", "but", "however", "in fact", "on the contrary",
+    "rather", "instead", "yet", "nevertheless", "nonetheless",
+}
+# "absolutely" also appears in CERTAINTY — intentional: it is both an intensifier and a
+# certainty marker. SHAP will split its contribution between n_intensifiers and n_certainty.
+INTENSIFIERS = {
+    "very", "really", "extremely", "super", "totally", "absolutely",
+}
+
+_FIRST_PERSON_RE = re.compile(r"\b(i|my|me|i'm|i've|i'll|i'd|myself)\b")
+_SECOND_PERSON_RE = re.compile(r"\b(you|your|you're|you've|you'll|yourself)\b")
+
 
 def _count_phrases(text_lower: str, lexicon: set[str]) -> int:
     """Count how many lexicon phrases appear in the text (substring match)."""
     return sum(1 for phrase in lexicon if phrase in text_lower)
+
+
+def _count_hedging(text_lower: str) -> int:
+    """Count hedging markers; corrects for 'i don't think' which is assertive
+    but contains the substring 'i think'."""
+    count = _count_phrases(text_lower, HEDGING)
+    count -= text_lower.count("i don't think") + text_lower.count("i dont think")
+    return max(0, count)
 
 
 # ─────────────────────────────────────────────
@@ -269,9 +296,9 @@ def _morph_syntax_features(docs: list) -> pd.DataFrame:
                     nominalisations += 1
             if t.dep_ == "neg":
                 negations += 1
-            if t.dep_ == "auxpass":
+            if t.dep_ in {"auxpass", "aux:pass"}:
                 passive_aux += 1
-            if t.dep_ in {"nsubjpass", "csubjpass"}:
+            if t.dep_ in {"nsubjpass", "csubjpass", "nsubj:pass", "csubj:pass"}:
                 passive_subj += 1
             if t.dep_ in {"ccomp", "xcomp", "advcl", "acl", "acl:relcl"}:
                 subord += 1
@@ -290,10 +317,10 @@ def _morph_syntax_features(docs: list) -> pd.DataFrame:
 
         rows.append({
             # morphological
-            "n_modals_all": modals_all,
             "n_modals_certain": modals_certain,
             "n_modals_uncertain": modals_uncertain,
             "modal_uncertainty_ratio": modals_uncertain / max(1, modals_all),
+            "modal_density": modals_all / n_words,
             "n_past_tense": past,
             "n_present_tense": present,
             "past_pres_ratio": past / max(1, past + present),
@@ -312,8 +339,6 @@ def _morph_syntax_features(docs: list) -> pd.DataFrame:
             "n_conjunctions": conj,
             "mean_sentence_len": float(np.mean(sent_lens)),
             "sentence_len_var": float(np.var(sent_lens)) if len(sent_lens) > 1 else 0.0,
-            # normalisations for cross-length comparability
-            "modal_density": modals_all / n_words,
         })
     return pd.DataFrame(rows)
 
@@ -350,16 +375,18 @@ def extract_features(
     Returns (features_df, feature_names).
 
     Six linguistic levels per the proposal:
-      orthographic — length, punctuation, casing
-      lexical      — readability, hedging/certainty/politeness/aggression/source/anecdote/
-                     authority/command lexicon counts
+      orthographic  — length, punctuation, casing
+      lexical       — readability (Flesch), lexical diversity (type-token ratio)
+      pragmatic     — epistemic stance (hedging/certainty), politeness, aggression,
+                      evidential strategies (sources/anecdote/authority), directive
+                      speech acts (command), contrast markers, intensifiers,
+                      person ratios, question-only detection
       morphological — modal verbs (epistemic certainty split), tense, nominalisation,
-                      negation                            (spaCy)
-      syntactic    — clause count, parse depth, passive voice, subordination,
-                     sentence-length variance             (spaCy)
-      semantic     — VADER sentiment + cosine similarity of rebuttal to the
-                     correct_answer and wrong_answer      (sentence-transformers)
-      pragmatic    — covered by lexical pragmatic markers above
+                      negation                             (spaCy)
+      syntactic     — clause count, parse depth, passive voice, subordination,
+                      sentence-length variance              (spaCy)
+      semantic      — VADER sentiment + cosine similarity of rebuttal to the
+                      wrong_answer                          (sentence-transformers)
 
     Metadata columns (batch, teammate) are intentionally excluded: they encode
     collection provenance, not properties of the rebuttal.
@@ -374,12 +401,9 @@ def extract_features(
     text = df["rebuttal_text"].astype(str)
     text_lower = text.str.lower()
 
-    # — Orthographic / style / length
-    feats["len_chars"] = text.str.len()
+    # — Orthographic / style / length  (len_chars dropped: r~0.98 with len_words)
     feats["len_words"] = text.str.split().str.len()
-    # Sentence count from spaCy (shared with syntactic features for consistency)
     feats["n_sentences"] = [max(1, len(list(d.sents))) for d in docs]
-    # Average word length: characters per word excluding whitespace
     feats["avg_word_len"] = (
         text.str.replace(r"\s+", "", regex=True).str.len()
         / feats["len_words"].clip(lower=1)
@@ -390,14 +414,16 @@ def extract_features(
     feats["caps_ratio"] = text.apply(lambda s: sum(1 for c in s if c.isupper()) / max(1, len(s)))
     feats["starts_lower"] = text.apply(lambda s: int(bool(s) and s[0].islower()))
     feats["has_digit"] = text.str.contains(r"\d", regex=True).astype(int)
-    feats["ends_with_q"] = text.str.rstrip().str.endswith("?").astype(int)
+    # ends_with_q dropped: near-identical signal to n_question_marks > 0
 
-    # — Lexical: readability
+    # — Lexical: readability + diversity  (flesch_grade dropped: r~0.95 with flesch_reading_ease)
     feats["flesch_reading_ease"] = text.apply(lambda s: textstat.flesch_reading_ease(s) if s.strip() else 0.0)
-    feats["flesch_grade"] = text.apply(lambda s: textstat.flesch_kincaid_grade(s) if s.strip() else 0.0)
+    feats["type_token_ratio"] = text_lower.apply(
+        lambda s: len(set(s.split())) / max(1, len(s.split()))
+    )
 
-    # — Lexical / pragmatic: lexicon counts
-    feats["n_hedging"] = text_lower.apply(lambda s: _count_phrases(s, HEDGING))
+    # — Pragmatic: epistemic stance, speech acts, interpersonal stance
+    feats["n_hedging"] = text_lower.apply(_count_hedging)
     feats["n_certainty"] = text_lower.apply(lambda s: _count_phrases(s, CERTAINTY))
     feats["n_politeness"] = text_lower.apply(lambda s: _count_phrases(s, POLITENESS))
     feats["n_aggression"] = text_lower.apply(lambda s: _count_phrases(s, AGGRESSION))
@@ -405,12 +431,22 @@ def extract_features(
     feats["n_anecdote"] = text_lower.apply(lambda s: _count_phrases(s, ANECDOTE))
     feats["n_authority"] = text_lower.apply(lambda s: _count_phrases(s, AUTHORITY))
     feats["n_command"] = text_lower.apply(lambda s: _count_phrases(s, COMMAND))
+    feats["discourse_contrast_markers"] = text_lower.apply(lambda s: _count_phrases(s, CONTRAST_MARKERS))
+    feats["n_intensifiers"] = text_lower.apply(lambda s: _count_phrases(s, INTENSIFIERS))
+    feats["first_person_ratio"] = text_lower.apply(
+        lambda s: len(_FIRST_PERSON_RE.findall(s)) / max(1, len(s.split()))
+    )
+    feats["second_person_ratio"] = text_lower.apply(
+        lambda s: len(_SECOND_PERSON_RE.findall(s)) / max(1, len(s.split()))
+    )
+    feats["is_question_only"] = text.apply(
+        lambda s: int(bool(s.strip()) and s.strip().endswith("?") and "." not in s and "!" not in s)
+    )
 
-    # — Semantic: VADER sentiment
+    # — Semantic: VADER  (vader_neu dropped: exact linear dependence neu = 1 - pos - neg)
     vader_scores = text.apply(lambda s: _VADER.polarity_scores(s))
     feats["vader_pos"] = vader_scores.apply(lambda d: d["pos"])
     feats["vader_neg"] = vader_scores.apply(lambda d: d["neg"])
-    feats["vader_neu"] = vader_scores.apply(lambda d: d["neu"])
     feats["vader_compound"] = vader_scores.apply(lambda d: d["compound"])
 
     # — Morphological + syntactic via spaCy (uses pre-computed docs)
@@ -418,9 +454,9 @@ def extract_features(
     morph_syn.index = df.index
     feats = pd.concat([feats, morph_syn], axis=1)
 
-    # — Semantic: cosine similarity (pre-computed)
+    # — Semantic: cosine similarity  (sim_to_correct dropped: derivable as
+    #   sim_to_wrong - sim_margin, keeping it splits SHAP across correlated features)
     if sim_correct is not None and sim_wrong is not None:
-        feats["sim_to_correct"] = sim_correct
         feats["sim_to_wrong"] = sim_wrong
         feats["sim_margin_wrong_minus_correct"] = sim_wrong - sim_correct
 
