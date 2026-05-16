@@ -1,0 +1,147 @@
+[
+  {
+    "feature": "len_chars",
+    "importance": 1.19278848354776,
+    "direction": "FLIP"
+  },
+  {
+    "feature": "len_words",
+    "importance": -1.120052937642281,
+    "direction": "HOLD"
+  },
+  {
+    "feature": "flesch_grade",
+    "importance": 0.36262154702697175,
+    "direction": "FLIP"
+  },
+  {
+    "feature": "flesch_reading_ease",
+    "importance": 0.24632891745766222,
+    "direction": "FLIP"
+  },
+  {
+    "feature": "n_question_marks",
+    "importance": -0.19722244607285125,
+    "direction": "HOLD"
+  },
+  {
+    "feature": "n_sentences",
+    "importance": 0.19073179355126757,
+    "direction": "FLIP"
+  },
+  {
+    "feature": "ends_with_q",
+    "importance": -0.1385397632368342,
+    "direction": "HOLD"
+  },
+  {
+    "feature": "n_commas",
+    "importance": 0.13380082301459256,
+    "direction": "FLIP"
+  },
+  {
+    "feature": "n_certainty",
+    "importance": -0.11733041321314613,
+    "direction": "HOLD"
+  },
+  {
+    "feature": "has_digit",
+    "importance": -0.11500233068957633,
+    "direction": "HOLD"
+  },
+  {
+    "feature": "vader_pos",
+    "importance": 0.10526139369075967,
+    "direction": "FLIP"
+  },
+  {
+    "feature": "starts_lower",
+    "importance": 0.10251198634712301,
+    "direction": "FLIP"
+  },
+  {
+    "feature": "n_politeness",
+    "importance": -0.09401304801803552,
+    "direction": "HOLD"
+  },
+  {
+    "feature": "n_authority",
+    "importance": 0.09352378445105207,
+    "direction": "FLIP"
+  },
+  {
+    "feature": "vader_neu",
+    "importance": -0.08798477556359555,
+    "direction": "HOLD"
+  },
+  {
+    "feature": "n_command",
+    "importance": -0.07729704007271106,
+    "direction": "HOLD"
+  },
+  {
+    "feature": "n_aggression",
+    "importance": 0.07641366174235434,
+    "direction": "FLIP"
+  },
+  {
+    "feature": "batch_D",
+    "importance": 0.05088795703050593,
+    "direction": "FLIP"
+  },
+  {
+    "feature": "n_sources",
+    "importance": -0.044385415546486805,
+    "direction": "HOLD"
+  },
+  {
+    "feature": "avg_word_len",
+    "importance": -0.0424821219951798,
+    "direction": "HOLD"
+  },
+  {
+    "feature": "batch_B",
+    "importance": -0.029197811763401693,
+    "direction": "HOLD"
+  },
+  {
+    "feature": "n_anecdote",
+    "importance": -0.026080855605505045,
+    "direction": "HOLD"
+  },
+  {
+    "feature": "vader_neg",
+    "importance": -0.02422759437425307,
+    "direction": "HOLD"
+  },
+  {
+    "feature": "batch_C",
+    "importance": -0.017552034369940007,
+    "direction": "HOLD"
+  },
+  {
+    "feature": "vader_compound",
+    "importance": -0.01303095459153394,
+    "direction": "HOLD"
+  },
+  {
+    "feature": "n_exclamations",
+    "importance": 0.00953725163208617,
+    "direction": "FLIP"
+  },
+  {
+    "feature": "caps_ratio",
+    "importance": 0.004510623619512766,
+    "direction": "FLIP"
+  },
+  {
+    "feature": "n_hedging",
+    "importance": 0.004504126417476852,
+    "direction": "FLIP"
+  },
+  {
+    "feature": "batch_A",
+    "importance": -0.003934771886228998,
+    "direction": "HOLD"
+  }
+]

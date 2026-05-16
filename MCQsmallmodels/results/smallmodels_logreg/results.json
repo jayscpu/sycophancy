@@ -1,0 +1,236 @@
+{
+  "model": "logreg",
+  "timestamp": "2026-05-15T14:40:47.063996",
+  "device": "cpu",
+  "hyperparameters": {
+    "C": 1.0,
+    "class_weight": "balanced",
+    "max_iter": 2000
+  },
+  "training_log": [
+    {
+      "epoch": 1,
+      "train_f1": 0.22968012585212375,
+      "val_f1": 0.239067055393586
+    }
+  ],
+  "test_results": {
+    "metrics": {
+      "f1": 0.2204724409448819,
+      "precision": 0.13592233009708737,
+      "recall": 0.5833333333333334,
+      "accuracy": 0.6192307692307693,
+      "roc_auc": 0.6385357815442562,
+      "fpr": 0.3771186440677966
+    },
+    "confidence_intervals": {
+      "f1": {
+        "lower": 0.16482739625413148,
+        "upper": 0.2755143408714837
+      },
+      "precision": {
+        "lower": 0.09829501007467109,
+        "upper": 0.17586206896551723
+      },
+      "recall": {
+        "lower": 0.47689024390243906,
+        "upper": 0.6957266229898749
+      },
+      "accuracy": {
+        "lower": 0.5897435897435898,
+        "upper": 0.6564102564102564
+      },
+      "roc_auc": {
+        "lower": 0.5648744397182291,
+        "upper": 0.7045169587312411
+      }
+    },
+    "confusion_matrix": [
+      [
+        441,
+        267
+      ],
+      [
+        30,
+        42
+      ]
+    ],
+    "classification_report": "              precision    recall  f1-score   support\n\n        HOLD       0.94      0.62      0.75       708\n        FLIP       0.14      0.58      0.22        72\n\n    accuracy                           0.62       780\n   macro avg       0.54      0.60      0.48       780\nweighted avg       0.86      0.62      0.70       780\n"
+  },
+  "top_tokens": [
+    {
+      "token": "len_chars",
+      "mean": 1.19278848354776,
+      "count": 1,
+      "direction": "FLIP"
+    },
+    {
+      "token": "len_words",
+      "mean": -1.120052937642281,
+      "count": 1,
+      "direction": "HOLD"
+    },
+    {
+      "token": "flesch_grade",
+      "mean": 0.36262154702697175,
+      "count": 1,
+      "direction": "FLIP"
+    },
+    {
+      "token": "flesch_reading_ease",
+      "mean": 0.24632891745766222,
+      "count": 1,
+      "direction": "FLIP"
+    },
+    {
+      "token": "n_question_marks",
+      "mean": -0.19722244607285125,
+      "count": 1,
+      "direction": "HOLD"
+    },
+    {
+      "token": "n_sentences",
+      "mean": 0.19073179355126757,
+      "count": 1,
+      "direction": "FLIP"
+    },
+    {
+      "token": "ends_with_q",
+      "mean": -0.1385397632368342,
+      "count": 1,
+      "direction": "HOLD"
+    },
+    {
+      "token": "n_commas",
+      "mean": 0.13380082301459256,
+      "count": 1,
+      "direction": "FLIP"
+    },
+    {
+      "token": "n_certainty",
+      "mean": -0.11733041321314613,
+      "count": 1,
+      "direction": "HOLD"
+    },
+    {
+      "token": "has_digit",
+      "mean": -0.11500233068957633,
+      "count": 1,
+      "direction": "HOLD"
+    },
+    {
+      "token": "vader_pos",
+      "mean": 0.10526139369075967,
+      "count": 1,
+      "direction": "FLIP"
+    },
+    {
+      "token": "starts_lower",
+      "mean": 0.10251198634712301,
+      "count": 1,
+      "direction": "FLIP"
+    },
+    {
+      "token": "n_politeness",
+      "mean": -0.09401304801803552,
+      "count": 1,
+      "direction": "HOLD"
+    },
+    {
+      "token": "n_authority",
+      "mean": 0.09352378445105207,
+      "count": 1,
+      "direction": "FLIP"
+    },
+    {
+      "token": "vader_neu",
+      "mean": -0.08798477556359555,
+      "count": 1,
+      "direction": "HOLD"
+    },
+    {
+      "token": "n_command",
+      "mean": -0.07729704007271106,
+      "count": 1,
+      "direction": "HOLD"
+    },
+    {
+      "token": "n_aggression",
+      "mean": 0.07641366174235434,
+      "count": 1,
+      "direction": "FLIP"
+    },
+    {
+      "token": "batch_D",
+      "mean": 0.05088795703050593,
+      "count": 1,
+      "direction": "FLIP"
+    },
+    {
+      "token": "n_sources",
+      "mean": -0.044385415546486805,
+      "count": 1,
+      "direction": "HOLD"
+    },
+    {
+      "token": "avg_word_len",
+      "mean": -0.0424821219951798,
+      "count": 1,
+      "direction": "HOLD"
+    },
+    {
+      "token": "batch_B",
+      "mean": -0.029197811763401693,
+      "count": 1,
+      "direction": "HOLD"
+    },
+    {
+      "token": "n_anecdote",
+      "mean": -0.026080855605505045,
+      "count": 1,
+      "direction": "HOLD"
+    },
+    {
+      "token": "vader_neg",
+      "mean": -0.02422759437425307,
+      "count": 1,
+      "direction": "HOLD"
+    },
+    {
+      "token": "batch_C",
+      "mean": -0.017552034369940007,
+      "count": 1,
+      "direction": "HOLD"
+    },
+    {
+      "token": "vader_compound",
+      "mean": -0.01303095459153394,
+      "count": 1,
+      "direction": "HOLD"
+    },
+    {
+      "token": "n_exclamations",
+      "mean": 0.00953725163208617,
+      "count": 1,
+      "direction": "FLIP"
+    },
+    {
+      "token": "caps_ratio",
+      "mean": 0.004510623619512766,
+      "count": 1,
+      "direction": "FLIP"
+    },
+    {
+      "token": "n_hedging",
+      "mean": 0.004504126417476852,
+      "count": 1,
+      "direction": "FLIP"
+    },
+    {
+      "token": "batch_A",
+      "mean": -0.003934771886228998,
+      "count": 1,
+      "direction": "HOLD"
+    }
+  ]
+}

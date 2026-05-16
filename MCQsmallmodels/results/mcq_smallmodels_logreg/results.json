@@ -1,0 +1,242 @@
+{
+  "model": "logreg",
+  "timestamp": "2026-05-15T14:49:00.593353",
+  "device": "cpu",
+  "hyperparameters": {
+    "C": 1.0,
+    "class_weight": "balanced",
+    "max_iter": 2000
+  },
+  "training_log": [
+    {
+      "epoch": 1,
+      "train_f1": 0.6057371581054036,
+      "val_f1": 0.5581395348837209
+    }
+  ],
+  "test_results": {
+    "metrics": {
+      "f1": 0.555205047318612,
+      "precision": 0.5028571428571429,
+      "recall": 0.6197183098591549,
+      "accuracy": 0.5727272727272728,
+      "roc_auc": 0.6026558285885526,
+      "fpr": 0.4627659574468085
+    },
+    "confidence_intervals": {
+      "f1": {
+        "lower": 0.4887346890492424,
+        "upper": 0.6190729483282674
+      },
+      "precision": {
+        "lower": 0.4252696975534579,
+        "upper": 0.5789736842105263
+      },
+      "recall": {
+        "lower": 0.539554313995612,
+        "upper": 0.7043280516431923
+      },
+      "accuracy": {
+        "lower": 0.5181060606060606,
+        "upper": 0.6273484848484848
+      },
+      "roc_auc": {
+        "lower": 0.5402759723329906,
+        "upper": 0.6673504460905724
+      }
+    },
+    "confusion_matrix": [
+      [
+        101,
+        87
+      ],
+      [
+        54,
+        88
+      ]
+    ],
+    "classification_report": "              precision    recall  f1-score   support\n\n        HOLD       0.65      0.54      0.59       188\n        FLIP       0.50      0.62      0.56       142\n\n    accuracy                           0.57       330\n   macro avg       0.58      0.58      0.57       330\nweighted avg       0.59      0.57      0.57       330\n"
+  },
+  "top_tokens": [
+    {
+      "token": "len_words",
+      "mean": -1.2463351937246416,
+      "count": 1,
+      "direction": "HOLD"
+    },
+    {
+      "token": "len_chars",
+      "mean": 1.1089381291873144,
+      "count": 1,
+      "direction": "FLIP"
+    },
+    {
+      "token": "flesch_reading_ease",
+      "mean": 0.28376917365002713,
+      "count": 1,
+      "direction": "FLIP"
+    },
+    {
+      "token": "avg_word_len",
+      "mean": 0.24361926104451798,
+      "count": 1,
+      "direction": "FLIP"
+    },
+    {
+      "token": "n_authority",
+      "mean": -0.21634348052047364,
+      "count": 1,
+      "direction": "HOLD"
+    },
+    {
+      "token": "contains_wa",
+      "mean": -0.1516572795352398,
+      "count": 1,
+      "direction": "HOLD"
+    },
+    {
+      "token": "flesch_grade",
+      "mean": 0.14284536427318606,
+      "count": 1,
+      "direction": "FLIP"
+    },
+    {
+      "token": "n_question_marks",
+      "mean": -0.1362006616543128,
+      "count": 1,
+      "direction": "HOLD"
+    },
+    {
+      "token": "n_command",
+      "mean": 0.1278491380466434,
+      "count": 1,
+      "direction": "FLIP"
+    },
+    {
+      "token": "n_sentences",
+      "mean": 0.11119325482043872,
+      "count": 1,
+      "direction": "FLIP"
+    },
+    {
+      "token": "vader_pos",
+      "mean": -0.11079657571985677,
+      "count": 1,
+      "direction": "HOLD"
+    },
+    {
+      "token": "vader_compound",
+      "mean": -0.10512717856344363,
+      "count": 1,
+      "direction": "HOLD"
+    },
+    {
+      "token": "n_exclamations",
+      "mean": -0.09228950380687775,
+      "count": 1,
+      "direction": "HOLD"
+    },
+    {
+      "token": "has_digit",
+      "mean": 0.08576140182536982,
+      "count": 1,
+      "direction": "FLIP"
+    },
+    {
+      "token": "batch_C",
+      "mean": 0.08271377751329514,
+      "count": 1,
+      "direction": "FLIP"
+    },
+    {
+      "token": "n_politeness",
+      "mean": 0.07756771548102828,
+      "count": 1,
+      "direction": "FLIP"
+    },
+    {
+      "token": "n_anecdote",
+      "mean": -0.07719536115720431,
+      "count": 1,
+      "direction": "HOLD"
+    },
+    {
+      "token": "batch_B",
+      "mean": -0.07430086428146117,
+      "count": 1,
+      "direction": "HOLD"
+    },
+    {
+      "token": "n_sources",
+      "mean": -0.07189819529814792,
+      "count": 1,
+      "direction": "HOLD"
+    },
+    {
+      "token": "n_aggression",
+      "mean": -0.06966770211657647,
+      "count": 1,
+      "direction": "HOLD"
+    },
+    {
+      "token": "vader_neg",
+      "mean": 0.0649836446695862,
+      "count": 1,
+      "direction": "FLIP"
+    },
+    {
+      "token": "n_commas",
+      "mean": 0.05161066692027857,
+      "count": 1,
+      "direction": "FLIP"
+    },
+    {
+      "token": "batch_A",
+      "mean": -0.05159365486817511,
+      "count": 1,
+      "direction": "HOLD"
+    },
+    {
+      "token": "batch_D",
+      "mean": 0.04363233106466432,
+      "count": 1,
+      "direction": "FLIP"
+    },
+    {
+      "token": "n_hedging",
+      "mean": -0.04232158951569253,
+      "count": 1,
+      "direction": "HOLD"
+    },
+    {
+      "token": "starts_lower",
+      "mean": -0.026125380938707903,
+      "count": 1,
+      "direction": "HOLD"
+    },
+    {
+      "token": "n_certainty",
+      "mean": -0.008885896872496343,
+      "count": 1,
+      "direction": "HOLD"
+    },
+    {
+      "token": "caps_ratio",
+      "mean": -0.008800237670364114,
+      "count": 1,
+      "direction": "HOLD"
+    },
+    {
+      "token": "ends_with_q",
+      "mean": 0.007811846078783241,
+      "count": 1,
+      "direction": "FLIP"
+    },
+    {
+      "token": "vader_neu",
+      "mean": -0.0006465005530292532,
+      "count": 1,
+      "direction": "HOLD"
+    }
+  ]
+}

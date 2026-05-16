@@ -1,0 +1,176 @@
+[
+  {
+    "feature": "caps_ratio",
+    "importance": 0.01205128205128203,
+    "importance_std": 0.008102320671448705,
+    "direction": null
+  },
+  {
+    "feature": "n_sentences",
+    "importance": 0.009551282051282034,
+    "importance_std": 0.00845060482412301,
+    "direction": null
+  },
+  {
+    "feature": "vader_compound",
+    "importance": -0.005833333333333329,
+    "importance_std": 0.006704466310420311,
+    "direction": null
+  },
+  {
+    "feature": "batch_B",
+    "importance": 0.005833333333333313,
+    "importance_std": 0.006568245387374792,
+    "direction": null
+  },
+  {
+    "feature": "flesch_grade",
+    "importance": -0.005512820512820515,
+    "importance_std": 0.0066134463469379266,
+    "direction": null
+  },
+  {
+    "feature": "n_aggression",
+    "importance": -0.0052564102564102485,
+    "importance_std": 0.006344534888030059,
+    "direction": null
+  },
+  {
+    "feature": "ends_with_q",
+    "importance": -0.005256410256410238,
+    "importance_std": 0.003461538461538449,
+    "direction": null
+  },
+  {
+    "feature": "n_anecdote",
+    "importance": -0.004999999999999993,
+    "importance_std": 0.005915524100030421,
+    "direction": null
+  },
+  {
+    "feature": "vader_neu",
+    "importance": -0.004999999999999982,
+    "importance_std": 0.0033407215950757275,
+    "direction": null
+  },
+  {
+    "feature": "len_chars",
+    "importance": -0.00493589743589744,
+    "importance_std": 0.008039954059288939,
+    "direction": null
+  },
+  {
+    "feature": "n_exclamations",
+    "importance": -0.004935897435897424,
+    "importance_std": 0.00421861112404433,
+    "direction": null
+  },
+  {
+    "feature": "vader_pos",
+    "importance": 0.004487179487179471,
+    "importance_std": 0.005231334811052075,
+    "direction": null
+  },
+  {
+    "feature": "vader_neg",
+    "importance": -0.004487179487179471,
+    "importance_std": 0.003704662378666625,
+    "direction": null
+  },
+  {
+    "feature": "n_authority",
+    "importance": 0.004102564102564088,
+    "importance_std": 0.0033578976547971153,
+    "direction": null
+  },
+  {
+    "feature": "avg_word_len",
+    "importance": -0.003653846153846152,
+    "importance_std": 0.00784333576004743,
+    "direction": null
+  },
+  {
+    "feature": "n_certainty",
+    "importance": 0.0036538461538461408,
+    "importance_std": 0.004427719599827964,
+    "direction": null
+  },
+  {
+    "feature": "n_question_marks",
+    "importance": 0.0033974358974358963,
+    "importance_std": 0.0077802135286220275,
+    "direction": null
+  },
+  {
+    "feature": "batch_D",
+    "importance": -0.0032051282051281994,
+    "importance_std": 0.004631382530304725,
+    "direction": null
+  },
+  {
+    "feature": "len_words",
+    "importance": -0.0027564102564102523,
+    "importance_std": 0.005650851000360104,
+    "direction": null
+  },
+  {
+    "feature": "batch_C",
+    "importance": -0.0025641025641025663,
+    "importance_std": 0.00767091041110337,
+    "direction": null
+  },
+  {
+    "feature": "has_digit",
+    "importance": -0.002564102564102555,
+    "importance_std": 0.005031132530858593,
+    "direction": null
+  },
+  {
+    "feature": "n_commas",
+    "importance": 0.0024358974358974273,
+    "importance_std": 0.004620723407933343,
+    "direction": null
+  },
+  {
+    "feature": "flesch_reading_ease",
+    "importance": -0.002371794871794869,
+    "importance_std": 0.005962227696578797,
+    "direction": null
+  },
+  {
+    "feature": "starts_lower",
+    "importance": 0.000769230769230761,
+    "importance_std": 0.007200062093384077,
+    "direction": null
+  },
+  {
+    "feature": "n_sources",
+    "importance": -0.0007051282051282026,
+    "importance_std": 0.004261253808876973,
+    "direction": null
+  },
+  {
+    "feature": "n_hedging",
+    "importance": -0.00044871794871794715,
+    "importance_std": 0.005305818447865439,
+    "direction": null
+  },
+  {
+    "feature": "n_command",
+    "importance": 0.00038461538461538326,
+    "importance_std": 0.004405856481394749,
+    "direction": null
+  },
+  {
+    "feature": "batch_A",
+    "importance": -0.00038461538461538326,
+    "importance_std": 0.005129807441985253,
+    "direction": null
+  },
+  {
+    "feature": "n_politeness",
+    "importance": -0.0003205128205128194,
+    "importance_std": 0.0031631871260193035,
+    "direction": null
+  }
+]

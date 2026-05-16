@@ -1,0 +1,266 @@
+{
+  "model": "svm-rbf",
+  "timestamp": "2026-05-15T14:41:28.982570",
+  "device": "cpu",
+  "hyperparameters": {
+    "C": 1.0,
+    "kernel": "rbf",
+    "gamma": "scale",
+    "class_weight": "balanced"
+  },
+  "training_log": [
+    {
+      "epoch": 1,
+      "train_f1": 0.4616457461645746,
+      "val_f1": 0.25735294117647056
+    }
+  ],
+  "test_results": {
+    "metrics": {
+      "f1": 0.2158273381294964,
+      "precision": 0.14563106796116504,
+      "recall": 0.4166666666666667,
+      "accuracy": 0.7205128205128205,
+      "roc_auc": 0.6355736032642813,
+      "fpr": 0.24858757062146894
+    },
+    "confidence_intervals": {
+      "f1": {
+        "lower": 0.14925120161902353,
+        "upper": 0.27563090026897313
+      },
+      "precision": {
+        "lower": 0.09950183636789874,
+        "upper": 0.19027075431942686
+      },
+      "recall": {
+        "lower": 0.297259231062048,
+        "upper": 0.5309042809042809
+      },
+      "accuracy": {
+        "lower": 0.6858974358974359,
+        "upper": 0.7512820512820513
+      },
+      "roc_auc": {
+        "lower": 0.5648561900278288,
+        "upper": 0.7011276719299993
+      }
+    },
+    "confusion_matrix": [
+      [
+        532,
+        176
+      ],
+      [
+        42,
+        30
+      ]
+    ],
+    "classification_report": "              precision    recall  f1-score   support\n\n        HOLD       0.93      0.75      0.83       708\n        FLIP       0.15      0.42      0.22        72\n\n    accuracy                           0.72       780\n   macro avg       0.54      0.58      0.52       780\nweighted avg       0.85      0.72      0.77       780\n"
+  },
+  "top_tokens": [
+    {
+      "token": "caps_ratio",
+      "mean": 0.01205128205128203,
+      "count": 1,
+      "importance_std": 0.008102320671448705,
+      "direction": null
+    },
+    {
+      "token": "n_sentences",
+      "mean": 0.009551282051282034,
+      "count": 1,
+      "importance_std": 0.00845060482412301,
+      "direction": null
+    },
+    {
+      "token": "vader_compound",
+      "mean": -0.005833333333333329,
+      "count": 1,
+      "importance_std": 0.006704466310420311,
+      "direction": null
+    },
+    {
+      "token": "batch_B",
+      "mean": 0.005833333333333313,
+      "count": 1,
+      "importance_std": 0.006568245387374792,
+      "direction": null
+    },
+    {
+      "token": "flesch_grade",
+      "mean": -0.005512820512820515,
+      "count": 1,
+      "importance_std": 0.0066134463469379266,
+      "direction": null
+    },
+    {
+      "token": "n_aggression",
+      "mean": -0.0052564102564102485,
+      "count": 1,
+      "importance_std": 0.006344534888030059,
+      "direction": null
+    },
+    {
+      "token": "ends_with_q",
+      "mean": -0.005256410256410238,
+      "count": 1,
+      "importance_std": 0.003461538461538449,
+      "direction": null
+    },
+    {
+      "token": "n_anecdote",
+      "mean": -0.004999999999999993,
+      "count": 1,
+      "importance_std": 0.005915524100030421,
+      "direction": null
+    },
+    {
+      "token": "vader_neu",
+      "mean": -0.004999999999999982,
+      "count": 1,
+      "importance_std": 0.0033407215950757275,
+      "direction": null
+    },
+    {
+      "token": "len_chars",
+      "mean": -0.00493589743589744,
+      "count": 1,
+      "importance_std": 0.008039954059288939,
+      "direction": null
+    },
+    {
+      "token": "n_exclamations",
+      "mean": -0.004935897435897424,
+      "count": 1,
+      "importance_std": 0.00421861112404433,
+      "direction": null
+    },
+    {
+      "token": "vader_pos",
+      "mean": 0.004487179487179471,
+      "count": 1,
+      "importance_std": 0.005231334811052075,
+      "direction": null
+    },
+    {
+      "token": "vader_neg",
+      "mean": -0.004487179487179471,
+      "count": 1,
+      "importance_std": 0.003704662378666625,
+      "direction": null
+    },
+    {
+      "token": "n_authority",
+      "mean": 0.004102564102564088,
+      "count": 1,
+      "importance_std": 0.0033578976547971153,
+      "direction": null
+    },
+    {
+      "token": "avg_word_len",
+      "mean": -0.003653846153846152,
+      "count": 1,
+      "importance_std": 0.00784333576004743,
+      "direction": null
+    },
+    {
+      "token": "n_certainty",
+      "mean": 0.0036538461538461408,
+      "count": 1,
+      "importance_std": 0.004427719599827964,
+      "direction": null
+    },
+    {
+      "token": "n_question_marks",
+      "mean": 0.0033974358974358963,
+      "count": 1,
+      "importance_std": 0.0077802135286220275,
+      "direction": null
+    },
+    {
+      "token": "batch_D",
+      "mean": -0.0032051282051281994,
+      "count": 1,
+      "importance_std": 0.004631382530304725,
+      "direction": null
+    },
+    {
+      "token": "len_words",
+      "mean": -0.0027564102564102523,
+      "count": 1,
+      "importance_std": 0.005650851000360104,
+      "direction": null
+    },
+    {
+      "token": "batch_C",
+      "mean": -0.0025641025641025663,
+      "count": 1,
+      "importance_std": 0.00767091041110337,
+      "direction": null
+    },
+    {
+      "token": "has_digit",
+      "mean": -0.002564102564102555,
+      "count": 1,
+      "importance_std": 0.005031132530858593,
+      "direction": null
+    },
+    {
+      "token": "n_commas",
+      "mean": 0.0024358974358974273,
+      "count": 1,
+      "importance_std": 0.004620723407933343,
+      "direction": null
+    },
+    {
+      "token": "flesch_reading_ease",
+      "mean": -0.002371794871794869,
+      "count": 1,
+      "importance_std": 0.005962227696578797,
+      "direction": null
+    },
+    {
+      "token": "starts_lower",
+      "mean": 0.000769230769230761,
+      "count": 1,
+      "importance_std": 0.007200062093384077,
+      "direction": null
+    },
+    {
+      "token": "n_sources",
+      "mean": -0.0007051282051282026,
+      "count": 1,
+      "importance_std": 0.004261253808876973,
+      "direction": null
+    },
+    {
+      "token": "n_hedging",
+      "mean": -0.00044871794871794715,
+      "count": 1,
+      "importance_std": 0.005305818447865439,
+      "direction": null
+    },
+    {
+      "token": "n_command",
+      "mean": 0.00038461538461538326,
+      "count": 1,
+      "importance_std": 0.004405856481394749,
+      "direction": null
+    },
+    {
+      "token": "batch_A",
+      "mean": -0.00038461538461538326,
+      "count": 1,
+      "importance_std": 0.005129807441985253,
+      "direction": null
+    },
+    {
+      "token": "n_politeness",
+      "mean": -0.0003205128205128194,
+      "count": 1,
+      "importance_std": 0.0031631871260193035,
+      "direction": null
+    }
+  ]
+}
