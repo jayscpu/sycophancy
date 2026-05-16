@@ -11,7 +11,9 @@ Input:  Merged CSV with columns: question_id, rebuttal_text, label (FLIP/HOLD)
 Output: Evaluation metrics, confusion matrix, feature-importance ranking
 
 Setup:
-    pip install pandas numpy scikit-learn xgboost vaderSentiment textstat matplotlib
+    pip install pandas numpy scikit-learn xgboost vaderSentiment textstat matplotlib \
+                spacy sentence-transformers
+    python -m spacy download en_core_web_sm
 
 Usage:
     python train_smallmodels.py --model logreg  --input merged_data.csv --output results/logreg
@@ -47,6 +49,10 @@ from sklearn.metrics import (
 from sklearn.utils.class_weight import compute_class_weight
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 import textstat
+import spacy
+from sentence_transformers import SentenceTransformer
+import optuna
+import shap
 from datetime import datetime
 
 
@@ -89,6 +95,13 @@ COMMAND = {
     "check your facts", "look it up", "verify", "reconsider", "think again",
     "fact-check", "double check", "google it", "search it",
 }
+
+# Modal verbs partitioned by epistemic certainty (Palmer 2001, Biber et al. 1999)
+MODALS_CERTAIN = {"must", "will", "shall", "would"}
+MODALS_UNCERTAIN = {"may", "might", "could", "can", "should"}
+MODALS_ALL = MODALS_CERTAIN | MODALS_UNCERTAIN
+
+NOMINALISATION_SUFFIXES = ("tion", "ment", "ness", "ity", "ance", "ence", "sion", "ship")
 
 
 def _count_phrases(text_lower: str, lexicon: set[str]) -> int:
@@ -189,30 +202,188 @@ def load_and_split(csv_path: str, test_size=0.15, val_size=0.15, random_state=42
 # ─────────────────────────────────────────────
 
 _VADER = SentimentIntensityAnalyzer()
+_NLP = None
+_SBERT = None
 
 
-def extract_features(df: pd.DataFrame) -> tuple[pd.DataFrame, list[str]]:
+def _get_nlp():
+    global _NLP
+    if _NLP is None:
+        _NLP = spacy.load("en_core_web_sm", disable=["ner"])
+    return _NLP
+
+
+def _get_sbert():
+    global _SBERT
+    if _SBERT is None:
+        _SBERT = SentenceTransformer("all-MiniLM-L6-v2")
+    return _SBERT
+
+
+def _cos_sim(a: np.ndarray, b: np.ndarray) -> np.ndarray:
+    """Row-wise cosine similarity for two (n, d) matrices."""
+    a_norm = a / (np.linalg.norm(a, axis=1, keepdims=True) + 1e-12)
+    b_norm = b / (np.linalg.norm(b, axis=1, keepdims=True) + 1e-12)
+    return np.sum(a_norm * b_norm, axis=1)
+
+
+def _morph_syntax_features(docs: list) -> pd.DataFrame:
+    """Per-doc morphological + syntactic feature dict, then stacked."""
+    rows = []
+    for doc in docs:
+        n_tokens = max(1, sum(1 for t in doc if not t.is_space))
+        n_words = max(1, sum(1 for t in doc if t.is_alpha))
+        sents = list(doc.sents) or [doc[:]]
+        n_sents = max(1, len(sents))
+        sent_lens = [sum(1 for t in s if not t.is_space) for s in sents]
+
+        modals_all = modals_certain = modals_uncertain = 0
+        past = present = 0
+        nominalisations = 0
+        n_nouns = 0
+        negations = 0
+        passive_aux = passive_subj = 0
+        subord = 0
+        conj = 0
+        n_verbs = 0  # finite verbs / clause heads
+        for t in doc:
+            lemma = t.lemma_.lower()
+            if t.pos_ == "AUX" or t.tag_ in {"MD"}:
+                if lemma in MODALS_ALL:
+                    modals_all += 1
+                    if lemma in MODALS_CERTAIN:
+                        modals_certain += 1
+                    elif lemma in MODALS_UNCERTAIN:
+                        modals_uncertain += 1
+            if t.pos_ in {"VERB", "AUX"}:
+                tense = t.morph.get("Tense")
+                if "Past" in tense:
+                    past += 1
+                elif "Pres" in tense:
+                    present += 1
+                if t.tag_ in {"VBD", "VBP", "VBZ", "MD"}:
+                    n_verbs += 1
+            if t.pos_ == "NOUN":
+                n_nouns += 1
+                if lemma.endswith(NOMINALISATION_SUFFIXES):
+                    nominalisations += 1
+            if t.dep_ == "neg":
+                negations += 1
+            if t.dep_ == "auxpass":
+                passive_aux += 1
+            if t.dep_ in {"nsubjpass", "csubjpass"}:
+                passive_subj += 1
+            if t.dep_ in {"ccomp", "xcomp", "advcl", "acl", "acl:relcl"}:
+                subord += 1
+            if t.dep_ in {"cc", "conj"}:
+                conj += 1
+
+        depths = []
+        for t in doc:
+            d = 0
+            cur = t
+            while cur.head.i != cur.i and d < 50:
+                d += 1
+                cur = cur.head
+            depths.append(d)
+        mean_depth = float(np.mean(depths)) if depths else 0.0
+
+        rows.append({
+            # morphological
+            "n_modals_all": modals_all,
+            "n_modals_certain": modals_certain,
+            "n_modals_uncertain": modals_uncertain,
+            "modal_uncertainty_ratio": modals_uncertain / max(1, modals_all),
+            "n_past_tense": past,
+            "n_present_tense": present,
+            "past_pres_ratio": past / max(1, past + present),
+            "n_nominalisations": nominalisations,
+            "nominalisation_rate": nominalisations / max(1, n_nouns),
+            "n_negations": negations,
+            # syntactic
+            "n_clauses": n_verbs,
+            "clauses_per_sentence": n_verbs / n_sents,
+            "mean_parse_depth": mean_depth,
+            "n_passive_aux": passive_aux,
+            "n_passive_subj": passive_subj,
+            "is_passive": int(passive_aux > 0 or passive_subj > 0),
+            "n_subord_clauses": subord,
+            "subord_rate": subord / n_sents,
+            "n_conjunctions": conj,
+            "mean_sentence_len": float(np.mean(sent_lens)),
+            "sentence_len_var": float(np.var(sent_lens)) if len(sent_lens) > 1 else 0.0,
+            # normalisations for cross-length comparability
+            "modal_density": modals_all / n_words,
+        })
+    return pd.DataFrame(rows)
+
+
+def precompute_nlp_and_embeddings(df: pd.DataFrame):
+    """Run spaCy + sbert once over the full df. Returns (docs, sim_correct, sim_wrong)
+    aligned to df.index. Pass these into extract_features to avoid re-running per split."""
+    text_list = df["rebuttal_text"].astype(str).tolist()
+    nlp = _get_nlp()
+    docs = list(nlp.pipe(text_list, batch_size=64))
+
+    sim_correct = sim_wrong = None
+    if "correct_answer" in df.columns and "wrong_answer" in df.columns:
+        sbert = _get_sbert()
+        reb_emb = sbert.encode(text_list, batch_size=64, show_progress_bar=False,
+                               convert_to_numpy=True)
+        cor_emb = sbert.encode(df["correct_answer"].fillna("").astype(str).tolist(),
+                               batch_size=64, show_progress_bar=False, convert_to_numpy=True)
+        wro_emb = sbert.encode(df["wrong_answer"].fillna("").astype(str).tolist(),
+                               batch_size=64, show_progress_bar=False, convert_to_numpy=True)
+        sim_correct = _cos_sim(reb_emb, cor_emb)
+        sim_wrong = _cos_sim(reb_emb, wro_emb)
+    return docs, sim_correct, sim_wrong
+
+
+def extract_features(
+    df: pd.DataFrame,
+    docs: list | None = None,
+    sim_correct: np.ndarray | None = None,
+    sim_wrong: np.ndarray | None = None,
+) -> tuple[pd.DataFrame, list[str]]:
     """
     Build a numeric feature matrix from a DataFrame of rebuttals.
     Returns (features_df, feature_names).
 
-    Feature groups:
-      style       — length, punctuation, casing
-      readability — Flesch reading ease / grade
-      lexicon     — counts of hedging, certainty, politeness, aggression,
-                    source-citation, personal-anecdote, authority, command phrases
-      sentiment   — VADER pos/neg/neu/compound
-      meta        — one-hot of batch (A/B/C/D) when present
+    Six linguistic levels per the proposal:
+      orthographic — length, punctuation, casing
+      lexical      — readability, hedging/certainty/politeness/aggression/source/anecdote/
+                     authority/command lexicon counts
+      morphological — modal verbs (epistemic certainty split), tense, nominalisation,
+                      negation                            (spaCy)
+      syntactic    — clause count, parse depth, passive voice, subordination,
+                     sentence-length variance             (spaCy)
+      semantic     — VADER sentiment + cosine similarity of rebuttal to the
+                     correct_answer and wrong_answer      (sentence-transformers)
+      pragmatic    — covered by lexical pragmatic markers above
+
+    Metadata columns (batch, teammate) are intentionally excluded: they encode
+    collection provenance, not properties of the rebuttal.
+
+    Pre-compute `docs` / `sim_*` once on the full df with precompute_nlp_and_embeddings()
+    and pass them in to avoid running spaCy + sbert separately for each CV split.
     """
+    if docs is None or sim_correct is None or sim_wrong is None:
+        docs, sim_correct, sim_wrong = precompute_nlp_and_embeddings(df)
+
     feats = pd.DataFrame(index=df.index)
     text = df["rebuttal_text"].astype(str)
     text_lower = text.str.lower()
 
-    # — Style / length
+    # — Orthographic / style / length
     feats["len_chars"] = text.str.len()
     feats["len_words"] = text.str.split().str.len()
-    feats["n_sentences"] = text.apply(lambda s: max(1, len(re.findall(r"[.!?]+", s))))
-    feats["avg_word_len"] = feats["len_chars"] / feats["len_words"].clip(lower=1)
+    # Sentence count from spaCy (shared with syntactic features for consistency)
+    feats["n_sentences"] = [max(1, len(list(d.sents))) for d in docs]
+    # Average word length: characters per word excluding whitespace
+    feats["avg_word_len"] = (
+        text.str.replace(r"\s+", "", regex=True).str.len()
+        / feats["len_words"].clip(lower=1)
+    )
     feats["n_question_marks"] = text.str.count(r"\?")
     feats["n_exclamations"] = text.str.count("!")
     feats["n_commas"] = text.str.count(",")
@@ -221,11 +392,11 @@ def extract_features(df: pd.DataFrame) -> tuple[pd.DataFrame, list[str]]:
     feats["has_digit"] = text.str.contains(r"\d", regex=True).astype(int)
     feats["ends_with_q"] = text.str.rstrip().str.endswith("?").astype(int)
 
-    # — Readability
+    # — Lexical: readability
     feats["flesch_reading_ease"] = text.apply(lambda s: textstat.flesch_reading_ease(s) if s.strip() else 0.0)
     feats["flesch_grade"] = text.apply(lambda s: textstat.flesch_kincaid_grade(s) if s.strip() else 0.0)
 
-    # — Lexicon counts (one feature per category)
+    # — Lexical / pragmatic: lexicon counts
     feats["n_hedging"] = text_lower.apply(lambda s: _count_phrases(s, HEDGING))
     feats["n_certainty"] = text_lower.apply(lambda s: _count_phrases(s, CERTAINTY))
     feats["n_politeness"] = text_lower.apply(lambda s: _count_phrases(s, POLITENESS))
@@ -235,27 +406,23 @@ def extract_features(df: pd.DataFrame) -> tuple[pd.DataFrame, list[str]]:
     feats["n_authority"] = text_lower.apply(lambda s: _count_phrases(s, AUTHORITY))
     feats["n_command"] = text_lower.apply(lambda s: _count_phrases(s, COMMAND))
 
-    # — Sentiment (VADER)
+    # — Semantic: VADER sentiment
     vader_scores = text.apply(lambda s: _VADER.polarity_scores(s))
     feats["vader_pos"] = vader_scores.apply(lambda d: d["pos"])
     feats["vader_neg"] = vader_scores.apply(lambda d: d["neg"])
     feats["vader_neu"] = vader_scores.apply(lambda d: d["neu"])
     feats["vader_compound"] = vader_scores.apply(lambda d: d["compound"])
 
-    # — Meta: one-hot of batch
-    if "batch" in df.columns:
-        for b in ["A", "B", "C", "D"]:
-            feats[f"batch_{b}"] = (df["batch"].astype(str).str.upper() == b).astype(int)
+    # — Morphological + syntactic via spaCy (uses pre-computed docs)
+    morph_syn = _morph_syntax_features(docs)
+    morph_syn.index = df.index
+    feats = pd.concat([feats, morph_syn], axis=1)
 
-    # — MCQ-only: does the rebuttal contain the targeted wrong_answer verbatim?
-    if "wrong_answer" in df.columns:
-        def _contains_wa(row):
-            wa = str(row.get("wrong_answer") or "").lower().strip()
-            if not wa:
-                return 0
-            pattern = r"\b" + re.escape(wa) + r"\b"
-            return int(bool(re.search(pattern, str(row["rebuttal_text"]).lower())))
-        feats["contains_wa"] = df.apply(_contains_wa, axis=1)
+    # — Semantic: cosine similarity (pre-computed)
+    if sim_correct is not None and sim_wrong is not None:
+        feats["sim_to_correct"] = sim_correct
+        feats["sim_to_wrong"] = sim_wrong
+        feats["sim_margin_wrong_minus_correct"] = sim_wrong - sim_correct
 
     return feats, feats.columns.tolist()
 
@@ -504,6 +671,243 @@ def aggregate_importance(records):
 
 
 # ─────────────────────────────────────────────
+# NESTED CV + OPTUNA + SHAP
+# ─────────────────────────────────────────────
+
+def _build_classifier(model_name: str, params: dict, y_train: np.ndarray):
+    """Instantiate a fresh classifier with the given (tuned) hyperparameters
+    plus fixed defaults. `params` must contain only the tuned keys —
+    fixed defaults like solver/class_weight/scale_pos_weight are added here."""
+    if model_name == "logreg":
+        # liblinear supports both l1 and l2; ignores n_jobs (single-threaded).
+        return LogisticRegression(
+            **params, solver="liblinear", max_iter=2000,
+            class_weight="balanced", random_state=42,
+        )
+    if model_name == "xgboost":
+        spw = (len(y_train) - y_train.sum()) / max(1, y_train.sum())
+        return xgb.XGBClassifier(
+            **params, scale_pos_weight=float(spw),
+            eval_metric="logloss", random_state=42, n_jobs=-1,
+        )
+    if model_name == "svm-rbf":
+        return SVC(
+            **params, kernel="rbf", class_weight="balanced",
+            probability=True, random_state=42,
+        )
+    raise ValueError(f"Unknown model: {model_name}")
+
+
+def _suggest_params(trial: "optuna.Trial", model_name: str) -> dict:
+    """Optuna hyperparameter search space per model — TUNED params only.
+    Fixed params (solver, kernel, etc.) live in _build_classifier."""
+    if model_name == "logreg":
+        return {
+            "C": trial.suggest_float("C", 1e-3, 1e2, log=True),
+            "penalty": trial.suggest_categorical("penalty", ["l1", "l2"]),
+        }
+    if model_name == "xgboost":
+        return {
+            "n_estimators": trial.suggest_int("n_estimators", 100, 600, step=50),
+            "learning_rate": trial.suggest_float("learning_rate", 1e-3, 3e-1, log=True),
+            "max_depth": trial.suggest_int("max_depth", 3, 8),
+            "subsample": trial.suggest_float("subsample", 0.6, 1.0),
+            "colsample_bytree": trial.suggest_float("colsample_bytree", 0.6, 1.0),
+            "min_child_weight": trial.suggest_int("min_child_weight", 1, 10),
+        }
+    if model_name == "svm-rbf":
+        return {
+            "C": trial.suggest_float("C", 1e-2, 1e2, log=True),
+            "gamma": trial.suggest_float("gamma", 1e-4, 1e1, log=True),
+        }
+    raise ValueError(f"Unknown model: {model_name}")
+
+
+def _optuna_objective(trial, model_name, X_inner, y_inner, groups_inner, n_inner_folds=3):
+    """Inner-CV mean F1 for one trial's hyperparameters.
+
+    Scaling is fit inside each inner fold to avoid leakage.
+    """
+    params = _suggest_params(trial, model_name)
+    inner_cv = StratifiedGroupKFold(n_splits=n_inner_folds, shuffle=True, random_state=42)
+    f1s = []
+    for tr, va in inner_cv.split(X_inner, y_inner, groups_inner):
+        scaler = StandardScaler()
+        X_tr = scaler.fit_transform(X_inner[tr])
+        X_va = scaler.transform(X_inner[va])
+        clf = _build_classifier(model_name, params, y_inner[tr])
+        clf.fit(X_tr, y_inner[tr])
+        f1s.append(f1_score(y_inner[va], clf.predict(X_va), zero_division=0))
+    return float(np.mean(f1s))
+
+
+def _compute_shap(model_name, clf, X_train, X_test, bg_size=100, max_test=200, seed=42):
+    """SHAP attributions for class FLIP. Returns (n_explained, n_features) array.
+
+      logreg  → LinearExplainer (exact, fast)
+      xgboost → TreeExplainer (exact, fast)
+      svm-rbf → KernelExplainer with subsampled background AND test set (slow)
+    """
+    rng = np.random.RandomState(seed)
+    if model_name == "logreg":
+        bg = shap.sample(X_train, min(bg_size, len(X_train)), random_state=seed)
+        explainer = shap.LinearExplainer(clf, bg)
+        sv = explainer.shap_values(X_test)
+        X_explained = X_test
+    elif model_name == "xgboost":
+        explainer = shap.TreeExplainer(clf)
+        sv = explainer.shap_values(X_test)
+        X_explained = X_test
+    elif model_name == "svm-rbf":
+        bg = shap.sample(X_train, min(bg_size, len(X_train)), random_state=seed)
+        if len(X_test) > max_test:
+            idx = rng.choice(len(X_test), max_test, replace=False)
+            X_explained = X_test[idx]
+        else:
+            X_explained = X_test
+        explainer = shap.KernelExplainer(clf.predict_proba, bg)
+        sv = explainer.shap_values(X_explained, silent=True, nsamples="auto")
+    else:
+        raise ValueError(f"Unknown model: {model_name}")
+
+    # Normalise output shape to (n_explained, n_features) for the FLIP class
+    sv = np.asarray(sv) if not isinstance(sv, list) else sv
+    if isinstance(sv, list):
+        # Older API: list of [class0_array, class1_array]
+        sv = np.asarray(sv[1])
+    elif sv.ndim == 3:
+        # Newer API: (n_samples, n_features, n_classes)
+        sv = sv[..., 1]
+    return sv, X_explained
+
+
+def run_nested_cv(
+    model_name, X, y, groups, feature_names,
+    n_outer_folds=5, n_inner_folds=3, n_trials=30, seed=42,
+):
+    """Outer StratifiedGroupKFold × Optuna-tuned inner CV + per-fold SHAP.
+
+    For each outer fold: tune on inner CV, refit on full outer-train, evaluate
+    on outer-test, compute SHAP. Aggregate metrics and mean-|SHAP| across folds.
+    """
+    outer_cv = StratifiedGroupKFold(n_splits=n_outer_folds, shuffle=True, random_state=seed)
+    fold_results = []
+    oof_probs = np.zeros(len(y))
+    oof_preds = np.zeros(len(y), dtype=int)
+    oof_assigned = np.zeros(len(y), dtype=bool)
+    shap_means_abs = []  # one (n_features,) array per fold
+
+    optuna.logging.set_verbosity(optuna.logging.WARNING)
+
+    for fold_i, (outer_tr, outer_te) in enumerate(
+        outer_cv.split(X, y, groups), start=1
+    ):
+        print(f"\n── Outer fold {fold_i}/{n_outer_folds} "
+              f"(train={len(outer_tr)}, test={len(outer_te)}) ──")
+        X_inner = X[outer_tr]
+        y_inner = y[outer_tr]
+        g_inner = groups[outer_tr]
+        X_test = X[outer_te]
+        y_test = y[outer_te]
+
+        study = optuna.create_study(
+            direction="maximize",
+            sampler=optuna.samplers.TPESampler(seed=seed),
+            study_name=f"{model_name}_fold{fold_i}",
+        )
+        study.optimize(
+            lambda t: _optuna_objective(t, model_name, X_inner, y_inner, g_inner, n_inner_folds),
+            n_trials=n_trials,
+            show_progress_bar=False,
+        )
+        best_params = study.best_params
+        best_inner_f1 = float(study.best_value)
+        print(f"  best inner F1: {best_inner_f1:.4f}  params: {best_params}")
+
+        # Refit on full outer-train with best params
+        scaler = StandardScaler()
+        X_inner_s = scaler.fit_transform(X_inner)
+        X_test_s = scaler.transform(X_test)
+        clf = _build_classifier(model_name, best_params, y_inner)
+        clf.fit(X_inner_s, y_inner)
+
+        probs = clf.predict_proba(X_test_s)[:, 1]
+        preds = (probs >= 0.5).astype(int)
+        oof_probs[outer_te] = probs
+        oof_preds[outer_te] = preds
+        oof_assigned[outer_te] = True
+
+        cm = confusion_matrix(y_test, preds, labels=[0, 1])
+        tn, fp, fn, tp = cm.ravel()
+        fold_metric = {
+            "fold": fold_i,
+            "best_params": best_params,
+            "best_inner_f1": best_inner_f1,
+            "f1": float(f1_score(y_test, preds, zero_division=0)),
+            "precision": float(precision_score(y_test, preds, zero_division=0)),
+            "recall": float(recall_score(y_test, preds, zero_division=0)),
+            "accuracy": float(accuracy_score(y_test, preds)),
+            "roc_auc": float(roc_auc_score(y_test, probs)) if len(np.unique(y_test)) > 1 else None,
+            "fpr": float(fp / (fp + tn)) if (fp + tn) > 0 else 0.0,
+            "confusion_matrix": cm.tolist(),
+        }
+        print(f"  fold {fold_i}  F1={fold_metric['f1']:.4f}  "
+              f"P={fold_metric['precision']:.3f}  R={fold_metric['recall']:.3f}  "
+              f"AUC={fold_metric['roc_auc']:.3f}")
+
+        print(f"  computing SHAP ({model_name})...")
+        sv, _ = _compute_shap(model_name, clf, X_inner_s, X_test_s)
+        shap_means_abs.append(np.abs(sv).mean(axis=0))
+
+        fold_results.append(fold_metric)
+
+    # ── Aggregate across folds
+    def _agg(key):
+        vals = [r[key] for r in fold_results if r[key] is not None]
+        return {
+            "mean": float(np.mean(vals)) if vals else None,
+            "std": float(np.std(vals, ddof=1)) if len(vals) > 1 else 0.0,
+            "per_fold": [r[key] for r in fold_results],
+        }
+
+    summary = {k: _agg(k) for k in
+               ("f1", "precision", "recall", "accuracy", "roc_auc", "fpr", "best_inner_f1")}
+
+    # OOF aggregate view (one row per sample, predicted while held out)
+    cm_oof = confusion_matrix(y[oof_assigned], oof_preds[oof_assigned], labels=[0, 1])
+    fpr_oof, tpr_oof, _ = roc_curve(y[oof_assigned], oof_probs[oof_assigned])
+    oof_auc = float(roc_auc_score(y[oof_assigned], oof_probs[oof_assigned])) \
+        if len(np.unique(y[oof_assigned])) > 1 else None
+
+    # SHAP aggregation: mean of mean-|shap| per feature across folds
+    shap_per_fold = np.stack(shap_means_abs)  # (n_folds, n_features)
+    shap_mean = shap_per_fold.mean(axis=0)
+    shap_std = shap_per_fold.std(axis=0, ddof=1) if len(shap_per_fold) > 1 else np.zeros_like(shap_mean)
+    shap_records = [
+        {
+            "feature": fn,
+            "mean_abs_shap": float(m),
+            "std_abs_shap": float(s),
+            "per_fold_mean_abs_shap": shap_per_fold[:, i].tolist(),
+        }
+        for i, (fn, m, s) in enumerate(zip(feature_names, shap_mean, shap_std))
+    ]
+    shap_records.sort(key=lambda r: r["mean_abs_shap"], reverse=True)
+
+    return {
+        "fold_results": fold_results,
+        "summary": summary,
+        "oof_predictions": oof_preds.tolist(),
+        "oof_probabilities": oof_probs.tolist(),
+        "oof_labels": y.tolist(),
+        "oof_confusion_matrix": cm_oof.tolist(),
+        "oof_roc_curve": {"fpr": fpr_oof.tolist(), "tpr": tpr_oof.tolist()},
+        "oof_roc_auc": oof_auc,
+        "shap_records": shap_records,
+    }
+
+
+# ─────────────────────────────────────────────
 # MAIN
 # ─────────────────────────────────────────────
 
@@ -514,162 +918,133 @@ def main():
                         help="Classifier choice")
     parser.add_argument("--input", required=True, help="Path to merged CSV")
     parser.add_argument("--output", required=True, help="Output directory for results")
-    parser.add_argument("--skip-ig", action="store_true", help="Skip feature-importance step")
+    parser.add_argument("--n-outer-folds", type=int, default=5)
+    parser.add_argument("--n-inner-folds", type=int, default=3)
+    parser.add_argument("--n-trials", type=int, default=30,
+                        help="Optuna trials per outer fold")
+    parser.add_argument("--seed", type=int, default=42)
     args = parser.parse_args()
 
     os.makedirs(args.output, exist_ok=True)
+    random.seed(args.seed)
+    np.random.seed(args.seed)
 
-    # Reproducibility: seed all sources of randomness
-    SEED = 42
-    random.seed(SEED)
-    np.random.seed(SEED)
-
-    print(f"Device: cpu (small models — no GPU needed)")
-
-    # ── Step 1: Load and split ──
     print(f"\n{'='*50}")
     print(f"Model: {args.model}")
     print(f"{'='*50}")
+    print("Device: cpu (small models — no GPU needed)")
 
-    df_train, df_val, df_test = load_and_split(args.input)
+    # ── Step 1: Load CSV, drop AMBIGUOUS/empty rows ──
+    df = pd.read_csv(args.input)
+    if "rebuttal" in df.columns and "rebuttal_text" not in df.columns:
+        df = df.rename(columns={"rebuttal": "rebuttal_text"})
+    df = df.dropna(subset=["rebuttal_text"]).copy()
+    df = df[df["rebuttal_text"].astype(str).str.strip() != ""].copy()
+    df["label"] = df["label"].astype(str).str.upper().str.strip()
+    df = df[df["label"].isin({"FLIP", "HOLD"})].reset_index(drop=True)
+    df["label_encoded"] = (df["label"] == "FLIP").astype(int)
+    print(f"Loaded {len(df)} samples, {df['question_id'].nunique()} questions, "
+          f"FLIP={df['label_encoded'].mean()*100:.1f}%")
 
-    # ── Step 2: Extract features ──
-    print(f"\nExtracting features...")
-    train_feats, feature_names = extract_features(df_train)
-    val_feats, _ = extract_features(df_val)
-    test_feats, _ = extract_features(df_test)
+    # ── Step 2: Pre-compute spaCy + sbert ONCE on full df ──
+    print(f"\nPre-computing spaCy + sentence-transformer embeddings (once)...")
+    docs, sim_c, sim_w = precompute_nlp_and_embeddings(df)
+
+    # ── Step 3: Extract features ──
+    print(f"Extracting features...")
+    feats, feature_names = extract_features(df, docs=docs, sim_correct=sim_c, sim_wrong=sim_w)
     print(f"  Feature count: {len(feature_names)}")
 
-    # Align columns (in case some batches are missing in a split)
-    val_feats = val_feats.reindex(columns=feature_names, fill_value=0)
-    test_feats = test_feats.reindex(columns=feature_names, fill_value=0)
+    X = feats.values.astype(np.float64)
+    y = df["label_encoded"].values
+    groups = df["question_id"].values
 
-    # Standardize for linear / kernel models
-    scaler = StandardScaler()
-    X_train = scaler.fit_transform(train_feats.values)
-    X_val = scaler.transform(val_feats.values)
-    X_test = scaler.transform(test_feats.values)
-
-    y_train = df_train["label_encoded"].to_numpy()
-    y_val = df_val["label_encoded"].to_numpy()
-    y_test = df_test["label_encoded"].to_numpy()
-
-    # ── Step 3: Compute class weights ──
-    class_weights = compute_class_weight("balanced", classes=np.array([0, 1]), y=y_train)
-    print(f"\nClass weights: HOLD={class_weights[0]:.3f}, FLIP={class_weights[1]:.3f}")
-
-    print(f"\nTotal features: {len(feature_names)}")
-
-    # ── Step 5: Train ──
-    print(f"\nTraining...")
-    clf, training_log = train_model(
-        model_name=args.model,
-        X_train=X_train,
-        y_train=y_train,
-        X_val=X_val,
-        y_val=y_val,
-        class_weights=class_weights,
-        output_dir=os.path.join(args.output, "checkpoints"),
+    # ── Step 4: Nested CV with Optuna + per-fold SHAP ──
+    print(f"\nNested {args.n_outer_folds}-fold outer × {args.n_inner_folds}-fold inner CV, "
+          f"{args.n_trials} Optuna trials per fold")
+    cv = run_nested_cv(
+        args.model, X, y, groups, feature_names,
+        n_outer_folds=args.n_outer_folds,
+        n_inner_folds=args.n_inner_folds,
+        n_trials=args.n_trials,
+        seed=args.seed,
     )
 
-    # ── Step 6: Evaluate on test set ──
-    print(f"\nEvaluating on test set...")
-    test_results = evaluate_test(clf, X_test, y_test)
+    # ── Step 5: Print summary ──
+    print(f"\n{'='*60}")
+    print(f"Nested-CV summary — {args.model}")
+    print(f"{'='*60}")
+    s = cv["summary"]
+    for k in ["f1", "precision", "recall", "accuracy", "roc_auc", "fpr", "best_inner_f1"]:
+        m, sd = s[k]["mean"], s[k]["std"]
+        if m is None:
+            continue
+        print(f"  {k:>14}: {m:.4f} ± {sd:.4f}")
+    print(f"  {'oof_roc_auc':>14}: {cv['oof_roc_auc']:.4f}" if cv["oof_roc_auc"] else "")
 
-    print(f"\n{test_results['classification_report']}")
-    print(f"Confusion Matrix:")
-    print(f"  {test_results['confusion_matrix']}")
-    print(f"\nMetrics with 95% CI:")
-    for metric, value in test_results["metrics"].items():
-        ci = test_results["confidence_intervals"].get(metric, {})
-        lower = ci.get("lower", "N/A")
-        upper = ci.get("upper", "N/A")
-        if isinstance(lower, float):
-            print(f"  {metric:>12}: {value:.4f} ({lower:.4f} – {upper:.4f})")
-        else:
-            print(f"  {metric:>12}: {value:.4f}")
+    print(f"\nTop 20 features by mean |SHAP|:")
+    for i, rec in enumerate(cv["shap_records"][:20], 1):
+        print(f"  {i:>2}. {rec['feature']:<35} "
+              f"mean|SHAP|={rec['mean_abs_shap']:.4f}  "
+              f"(±{rec['std_abs_shap']:.4f})")
 
-    # ── Step 6b: Save ROC curve plot ──
+    # ── Step 6: Save OOF ROC plot ──
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
-
-    roc_fpr = test_results["roc_curve"]["fpr"]
-    roc_tpr = test_results["roc_curve"]["tpr"]
-    auc_val = test_results["metrics"]["roc_auc"]
-
     plt.figure(figsize=(6, 6))
-    plt.plot(roc_fpr, roc_tpr, lw=2, label=f"{args.model} (AUC = {auc_val:.3f})")
+    plt.plot(cv["oof_roc_curve"]["fpr"], cv["oof_roc_curve"]["tpr"], lw=2,
+             label=f"{args.model} (OOF AUC = {cv['oof_roc_auc']:.3f})")
     plt.plot([0, 1], [0, 1], "k--", lw=1)
-    plt.xlabel("False Positive Rate")
-    plt.ylabel("True Positive Rate")
-    plt.title(f"ROC Curve — {args.model}")
-    plt.legend(loc="lower right")
-    plt.tight_layout()
+    plt.xlabel("False Positive Rate"); plt.ylabel("True Positive Rate")
+    plt.title(f"Out-of-fold ROC — {args.model}")
+    plt.legend(loc="lower right"); plt.tight_layout()
     roc_path = os.path.join(args.output, "roc_curve.png")
-    plt.savefig(roc_path, dpi=150)
-    plt.close()
+    plt.savefig(roc_path, dpi=150); plt.close()
     print(f"\n✓ ROC curve saved to {roc_path}")
 
-    # ── Step 7: Feature importance ──
-    importance_records = None
-    top_tokens = None
-    if not args.skip_ig:
-        importance_records = run_feature_importance(
-            args.model, clf, X_test, y_test, feature_names,
-        )
-        top_tokens = aggregate_importance(importance_records)
-
-        print(f"\nTop 20 features driving predictions:")
-        for i, (name, stats) in enumerate(top_tokens[:20]):
-            print(f"  {i+1:>2}. {name:<25} importance: {stats['mean']:.4f}")
-
-    # ── Step 8: Save everything ──
+    # ── Step 7: Save everything ──
     results = {
         "model": args.model,
         "timestamp": datetime.now().isoformat(),
         "device": "cpu",
-        "hyperparameters": {
-            "logreg":  {"C": 1.0, "class_weight": "balanced", "max_iter": 2000},
-            "xgboost": {"n_estimators": 500, "learning_rate": 0.1, "max_depth": 5,
-                        "subsample": 0.9, "colsample_bytree": 0.9,
-                        "early_stopping_rounds": 20},
-            "svm-rbf": {"C": 1.0, "kernel": "rbf", "gamma": "scale", "class_weight": "balanced"},
-        }[args.model],
-        "training_log": training_log,
-        "test_results": {
-            "metrics": test_results["metrics"],
-            "confidence_intervals": test_results["confidence_intervals"],
-            "confusion_matrix": test_results["confusion_matrix"],
-            "classification_report": test_results["classification_report"],
+        "config": {
+            "n_outer_folds": args.n_outer_folds,
+            "n_inner_folds": args.n_inner_folds,
+            "n_trials": args.n_trials,
+            "seed": args.seed,
         },
-        "top_tokens": [{"token": t, **s} for t, s in (top_tokens[:50] if top_tokens else [])],
+        "feature_names": feature_names,
+        "n_features": len(feature_names),
+        "n_samples": len(df),
+        "n_questions": int(df["question_id"].nunique()),
+        "class_balance_flip": float(df["label_encoded"].mean()),
+        "cv_summary": cv["summary"],
+        "fold_results": cv["fold_results"],
+        "oof_confusion_matrix": cv["oof_confusion_matrix"],
+        "oof_roc_auc": cv["oof_roc_auc"],
     }
-
     results_path = os.path.join(args.output, "results.json")
     with open(results_path, "w") as f:
         json.dump(results, f, indent=2)
-    print(f"\n✓ Results saved to {results_path}")
+    print(f"✓ results.json saved to {results_path}")
 
-    # Save feature-importance records separately (mirrors the IG output file pattern)
-    if importance_records:
-        ig_path = os.path.join(args.output, "ig_attributions.json")
-        with open(ig_path, "w") as f:
-            json.dump(importance_records, f, indent=2)
-        print(f"✓ Feature-importance records saved to {ig_path}")
+    shap_path = os.path.join(args.output, "shap_values.json")
+    with open(shap_path, "w") as f:
+        json.dump(cv["shap_records"], f, indent=2)
+    print(f"✓ shap_values.json saved to {shap_path}")
 
-    # Save predictions for further analysis
-    pred_df = df_test.copy()
-    pred_df["predicted"] = test_results["predictions"]
-    pred_df["probability"] = test_results["probabilities"]
+    pred_df = df.copy()
+    pred_df["predicted"] = cv["oof_predictions"]
+    pred_df["probability"] = cv["oof_probabilities"]
     pred_path = os.path.join(args.output, "predictions.csv")
     pred_df.to_csv(pred_path, index=False)
-    print(f"✓ Predictions saved to {pred_path}")
+    print(f"✓ predictions.csv (out-of-fold) saved to {pred_path}")
 
     print(f"\n{'='*50}")
     print(f"DONE — {args.model}")
-    print(f"  F1: {test_results['metrics']['f1']:.4f}")
-    print(f"  AUC: {test_results['metrics']['roc_auc']:.4f}")
+    print(f"  CV F1:  {s['f1']['mean']:.4f} ± {s['f1']['std']:.4f}")
+    print(f"  CV AUC: {s['roc_auc']['mean']:.4f} ± {s['roc_auc']['std']:.4f}")
     print(f"{'='*50}")
 
 
