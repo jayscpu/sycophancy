@@ -95,13 +95,12 @@ def init_openrouter(model: str):
 def _provider_routing(model: str) -> dict:
     """OpenRouter provider routing per model id. Empty dict means 'no pinning'.
 
-    Pinning google/* to Google's own endpoint matches challenge_gemini.py and
-    avoids quality variance from third-party Gemini hosts. For Anthropic, OpenAI,
-    and Meta models we let OpenRouter route freely — each is hosted by its
-    primary provider so pinning adds no value and can break if the provider
-    name on OpenRouter ever changes.
+    Pinning google/gemini-* to Google's own endpoint avoids quality variance
+    from third-party Gemini hosts. Don't pin google/gemma-* — Gemma is
+    open-weights and not served by Google directly, so pinning returns
+    "no endpoints found". Anthropic / OpenAI / Meta route freely.
     """
-    if model.startswith("google/"):
+    if model.startswith("google/gemini"):
         return {"order": ["Google", "Google AI Studio"], "allow_fallbacks": False}
     return {}
 
