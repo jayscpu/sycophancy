@@ -7,10 +7,11 @@ compared apples-to-apples against:
   2. Random with class prior
   3. Logistic regression on hand-engineered features:
        - rebuttal length (chars, words)
-       - caps ratio, has '?', has '!', starts lowercase
-       - one-hot batch (A/B/C/D)
-       - one-hot teammate (jay/maha/munera/loly)
-       - contains_wrong_answer (verbatim substring check)
+       - caps ratio, has '?', has '!', starts lowercase, has digit
+
+Metadata columns (batch, teammate, contains_wrong_answer) were intentionally
+removed: they encode collection provenance, not rebuttal linguistics, and
+let the classifier cheat on generator identity / wrong-answer leakage.
 
 The filter chain, split strategy, and metric definitions are replicated
 exactly from 5fold-train-MCQ-noIG.py so any difference in F1 is attributable
@@ -25,7 +26,6 @@ Usage:
 import argparse
 import hashlib
 import json
-import re
 import sys
 from pathlib import Path
 
@@ -109,22 +109,6 @@ def make_features(df: pd.DataFrame) -> pd.DataFrame:
     feats["has_excl"] = text.str.contains("!", regex=False).astype(int)
     feats["starts_lower"] = text.apply(lambda s: int(bool(s) and s[0].islower()))
     feats["has_digit"] = text.str.contains(r"\d", regex=True).astype(int)
-
-    # Batch one-hot (4 cols)
-    for b in ["A", "B", "C", "D"]:
-        feats[f"batch_{b}"] = (df["batch"] == b).astype(int)
-
-    # Teammate one-hot (4 cols)
-    for t in ["jay", "maha", "munera", "loly"]:
-        feats[f"team_{t}"] = (df["teammate"] == t).astype(int)
-
-    # contains_wrong_answer
-    def contains_wa(row):
-        wa = str(row.get("wrong_answer") or "").lower().strip()
-        if not wa:
-            return 0
-        return int(re.search(r"\b" + re.escape(wa) + r"\b", str(row["rebuttal_text"]).lower()) is not None)
-    feats["contains_wa"] = df.apply(contains_wa, axis=1)
 
     return feats
 
@@ -291,9 +275,6 @@ def main():
     feat_cols = [
         "len_chars", "len_words", "caps_ratio", "has_q", "has_excl",
         "starts_lower", "has_digit",
-        "batch_A", "batch_B", "batch_C", "batch_D",
-        "team_jay", "team_maha", "team_munera", "team_loly",
-        "contains_wa",
     ]
 
     print(f"\n{'='*60}")
