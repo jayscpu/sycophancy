@@ -1,0 +1,82 @@
+
+==================================================
+Model: gnb
+==================================================
+Device: cpu (small models — no GPU needed)
+Loaded 5859 samples, 293 questions, FLIP=43.3%
+
+Pre-computing spaCy + sentence-transformer embeddings (once)...
+Extracting features...
+  Feature count (full): 60
+
+Nested 5-fold outer × 3-fold inner CV, 30 Optuna trials per fold
+
+── Outer fold 1/5 (train=4693, test=1166) ──
+  best inner F1: 0.5562  params: {'var_smoothing': 0.08457672949002235}
+  fold 1  F1=0.6068 (vs 0.5560 @0.5, t=0.05)  P=0.461  R=0.886  AUC=0.622
+  computing SHAP (gnb)...
+
+── Outer fold 2/5 (train=4686, test=1173) ──
+  best inner F1: 0.5394  params: {'var_smoothing': 0.03524461423424443}
+  fold 2  F1=0.6157 (vs 0.5449 @0.5, t=0.06)  P=0.481  R=0.855  AUC=0.623
+  computing SHAP (gnb)...
+
+── Outer fold 3/5 (train=4686, test=1173) ──
+  best inner F1: 0.5608  params: {'var_smoothing': 0.008121748181600458}
+  fold 3  F1=0.5980 (vs 0.5458 @0.5, t=0.05)  P=0.468  R=0.828  AUC=0.617
+  computing SHAP (gnb)...
+
+── Outer fold 4/5 (train=4684, test=1175) ──
+  best inner F1: 0.5531  params: {'var_smoothing': 0.09366491613412713}
+  fold 4  F1=0.5973 (vs 0.5630 @0.5, t=0.05)  P=0.464  R=0.838  AUC=0.611
+  computing SHAP (gnb)...
+
+── Outer fold 5/5 (train=4687, test=1172) ──
+  best inner F1: 0.5630  params: {'var_smoothing': 0.05948990711157871}
+  fold 5  F1=0.6106 (vs 0.5789 @0.5, t=0.05)  P=0.465  R=0.888  AUC=0.636
+  computing SHAP (gnb)...
+
+============================================================
+Nested-CV summary — gnb
+============================================================
+              f1: 0.6057 ± 0.0080
+       precision: 0.4680 ± 0.0078
+          recall: 0.8591 ± 0.0274
+        accuracy: 0.5154 ± 0.0125
+         roc_auc: 0.6219 ± 0.0095
+             fpr: 0.7473 ± 0.0346
+   best_inner_f1: 0.5545 ± 0.0093
+     oof_roc_auc: 0.6208
+
+Top 20 features by mean |SHAP|:
+   1. n_anecdote                          mean|SHAP|=0.0374  (±0.0057)
+   2. n_question_marks                    mean|SHAP|=0.0275  (±0.0028)
+   3. n_repeated_punctuation              mean|SHAP|=0.0241  (±0.0135)
+   4. n_exclamations                      mean|SHAP|=0.0231  (±0.0119)
+   5. n_authority                         mean|SHAP|=0.0223  (±0.0096)
+   6. n_subord_clauses                    mean|SHAP|=0.0156  (±0.0035)
+   7. n_clauses                           mean|SHAP|=0.0154  (±0.0015)
+   8. n_named_entities                    mean|SHAP|=0.0152  (±0.0061)
+   9. is_question_only                    mean|SHAP|=0.0149  (±0.0112)
+  10. flesch_reading_ease                 mean|SHAP|=0.0143  (±0.0052)
+  11. n_modals_uncertain                  mean|SHAP|=0.0142  (±0.0039)
+  12. n_rhetorical_question_markers       mean|SHAP|=0.0139  (±0.0080)
+  13. n_all_caps_words                    mean|SHAP|=0.0136  (±0.0057)
+  14. n_intensifiers                      mean|SHAP|=0.0133  (±0.0103)
+  15. n_nominalisations                   mean|SHAP|=0.0132  (±0.0046)
+  16. avg_word_len                        mean|SHAP|=0.0117  (±0.0048)
+  17. n_numerical_expressions             mean|SHAP|=0.0115  (±0.0038)
+  18. clauses_per_sentence                mean|SHAP|=0.0105  (±0.0028)
+  19. modal_uncertainty_ratio             mean|SHAP|=0.0100  (±0.0022)
+  20. has_initial_reframe                 mean|SHAP|=0.0095  (±0.0064)
+
+✓ ROC curve saved to results/gnb/roc_curve.png
+✓ results.json saved to results/gnb/results.json
+✓ shap_values.json saved to results/gnb/shap_values.json
+✓ predictions.csv (out-of-fold) saved to results/gnb/predictions.csv
+
+==================================================
+DONE — gnb
+  CV F1:  0.6057 ± 0.0080
+  CV AUC: 0.6219 ± 0.0095
+==================================================

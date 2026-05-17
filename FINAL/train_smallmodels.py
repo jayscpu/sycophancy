@@ -34,6 +34,7 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.svm import SVC
 from sklearn.neural_network import MLPClassifier
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.naive_bayes import GaussianNB
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
 from sklearn.inspection import permutation_importance
@@ -883,6 +884,15 @@ def run_feature_importance(model_name, clf, X_test, y_test, feature_names, n_rep
             for name, imp in zip(feature_names, importances)
         ]
 
+    elif model_name == "gnb":
+        result = permutation_importance(
+            clf, X_test, y_test, n_repeats=n_repeats, random_state=42, n_jobs=-1
+        )
+        records = [
+            {"feature": name, "importance": float(mean), "importance_std": float(std), "direction": None}
+            for name, mean, std in zip(feature_names, result.importances_mean, result.importances_std)
+        ]
+
     else:
         raise ValueError(f"Unknown model: {model_name}")
 
@@ -947,6 +957,8 @@ def _build_classifier(model_name: str, params: dict, y_train: np.ndarray):
         return RandomForestClassifier(
             **params, class_weight="balanced", random_state=42, n_jobs=-1,
         )
+    if model_name == "gnb":
+        return GaussianNB(**params)
     raise ValueError(f"Unknown model: {model_name}")
 
 
@@ -992,6 +1004,10 @@ def _suggest_params(trial: "optuna.Trial", model_name: str) -> dict:
             "min_samples_leaf": trial.suggest_int("min_samples_leaf", 2, 20),
             "max_features": trial.suggest_categorical("max_features", ["sqrt", "log2", 0.5, 0.8]),
         }
+    if model_name == "gnb":
+        return {
+            "var_smoothing": trial.suggest_float("var_smoothing", 1e-12, 1e-1, log=True),
+        }
     raise ValueError(f"Unknown model: {model_name}")
 
 
@@ -1030,7 +1046,7 @@ def _compute_shap(model_name, clf, X_train, X_test, bg_size=100, max_test=200, s
         explainer = shap.TreeExplainer(clf)
         sv = explainer.shap_values(X_test)
         X_explained = X_test
-    elif model_name in ("svm-rbf", "mlp"):
+    elif model_name in ("svm-rbf", "mlp", "gnb"):
         # Model-agnostic KernelExplainer — sklearn MLPClassifier doesn't expose
         # gradients via shap.DeepExplainer (that needs keras/torch), so kernel
         # SHAP is the cleanest option.
@@ -1216,7 +1232,7 @@ def run_nested_cv(
 def main():
     parser = argparse.ArgumentParser(description="Train sycophancy flip classifier (small models)")
     parser.add_argument("--model", required=True,
-                        choices=["logreg", "xgboost", "svm-rbf", "mlp", "elasticnet", "rf"],
+                        choices=["logreg", "xgboost", "svm-rbf", "mlp", "elasticnet", "rf", "gnb"],
                         help="Classifier choice")
     parser.add_argument("--input", required=True, help="Path to merged CSV")
     parser.add_argument("--output", required=True, help="Output directory for results")
