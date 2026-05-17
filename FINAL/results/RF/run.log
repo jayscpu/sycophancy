@@ -1,0 +1,82 @@
+
+==================================================
+Model: rf
+==================================================
+Device: cpu (small models — no GPU needed)
+Loaded 5859 samples, 293 questions, FLIP=43.3%
+
+Pre-computing spaCy + sentence-transformer embeddings (once)...
+Extracting features...
+  Feature count (full): 60
+
+Nested 5-fold outer × 3-fold inner CV, 30 Optuna trials per fold
+
+── Outer fold 1/5 (train=4693, test=1166) ──
+  best inner F1: 0.5427  params: {'n_estimators': 400, 'max_depth': 11, 'min_samples_leaf': 19, 'max_features': 'log2'}
+  fold 1  F1=0.6084 (vs 0.5604 @0.5, t=0.42)  P=0.478  R=0.836  AUC=0.647
+  computing SHAP (rf)...
+
+── Outer fold 2/5 (train=4686, test=1173) ──
+  best inner F1: 0.5502  params: {'n_estimators': 400, 'max_depth': 11, 'min_samples_leaf': 19, 'max_features': 'log2'}
+  fold 2  F1=0.5991 (vs 0.5417 @0.5, t=0.38)  P=0.448  R=0.906  AUC=0.616
+  computing SHAP (rf)...
+
+── Outer fold 3/5 (train=4686, test=1173) ──
+  best inner F1: 0.5387  params: {'n_estimators': 350, 'max_depth': 8, 'min_samples_leaf': 17, 'max_features': 'log2'}
+  fold 3  F1=0.6182 (vs 0.5540 @0.5, t=0.38)  P=0.461  R=0.938  AUC=0.660
+  computing SHAP (rf)...
+
+── Outer fold 4/5 (train=4684, test=1175) ──
+  best inner F1: 0.5529  params: {'n_estimators': 500, 'max_depth': 9, 'min_samples_leaf': 20, 'max_features': 'log2'}
+  fold 4  F1=0.6175 (vs 0.5060 @0.5, t=0.40)  P=0.463  R=0.925  AUC=0.618
+  computing SHAP (rf)...
+
+── Outer fold 5/5 (train=4687, test=1172) ──
+  best inner F1: 0.5338  params: {'n_estimators': 300, 'max_depth': 8, 'min_samples_leaf': 18, 'max_features': 'log2'}
+  fold 5  F1=0.6256 (vs 0.5213 @0.5, t=0.39)  P=0.468  R=0.945  AUC=0.647
+  computing SHAP (rf)...
+
+============================================================
+Nested-CV summary — rf
+============================================================
+              f1: 0.6138 ± 0.0102
+       precision: 0.4636 ± 0.0111
+          recall: 0.9099 ± 0.0439
+        accuracy: 0.5039 ± 0.0234
+         roc_auc: 0.6376 ± 0.0193
+             fpr: 0.8071 ± 0.0705
+   best_inner_f1: 0.5436 ± 0.0079
+     oof_roc_auc: 0.6373
+
+Top 20 features by mean |SHAP|:
+   1. flesch_reading_ease                 mean|SHAP|=0.0163  (±0.0019)
+   2. n_question_marks                    mean|SHAP|=0.0122  (±0.0024)
+   3. avg_word_len                        mean|SHAP|=0.0115  (±0.0008)
+   4. third_person_ratio                  mean|SHAP|=0.0101  (±0.0035)
+   5. vader_pos                           mean|SHAP|=0.0099  (±0.0028)
+   6. first_person_ratio                  mean|SHAP|=0.0099  (±0.0012)
+   7. n_named_entities                    mean|SHAP|=0.0097  (±0.0030)
+   8. subord_rate                         mean|SHAP|=0.0096  (±0.0016)
+   9. clauses_per_sentence                mean|SHAP|=0.0088  (±0.0010)
+  10. starts_lower                        mean|SHAP|=0.0081  (±0.0015)
+  11. caps_ratio                          mean|SHAP|=0.0074  (±0.0018)
+  12. n_subord_clauses                    mean|SHAP|=0.0068  (±0.0017)
+  13. n_clauses                           mean|SHAP|=0.0065  (±0.0009)
+  14. n_commas                            mean|SHAP|=0.0059  (±0.0018)
+  15. modal_density                       mean|SHAP|=0.0052  (±0.0021)
+  16. sentence_len_var                    mean|SHAP|=0.0045  (±0.0011)
+  17. mean_sentence_len                   mean|SHAP|=0.0044  (±0.0005)
+  18. n_repeated_punctuation              mean|SHAP|=0.0043  (±0.0012)
+  19. vader_neg                           mean|SHAP|=0.0041  (±0.0013)
+  20. len_words                           mean|SHAP|=0.0039  (±0.0005)
+
+✓ ROC curve saved to results/RF/roc_curve.png
+✓ results.json saved to results/RF/results.json
+✓ shap_values.json saved to results/RF/shap_values.json
+✓ predictions.csv (out-of-fold) saved to results/RF/predictions.csv
+
+==================================================
+DONE — rf
+  CV F1:  0.6138 ± 0.0102
+  CV AUC: 0.6376 ± 0.0193
+==================================================

@@ -33,6 +33,7 @@ import pandas as pd
 from sklearn.linear_model import LogisticRegression
 from sklearn.svm import SVC
 from sklearn.neural_network import MLPClassifier
+from sklearn.ensemble import RandomForestClassifier
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
 from sklearn.inspection import permutation_importance
@@ -414,7 +415,7 @@ def _morph_syntax_features(docs: list) -> pd.DataFrame:
 N_SBERT_PCA = 60  # how many PCA components of the rebuttal embedding to use
 
 
-def precompute_nlp_and_embeddings(df: pd.DataFrame, n_pca: int = N_SBERT_PCA):
+def precompute_nlp_and_embeddings(df: pd.DataFrame, n_pca: int = N_SBERT_PCA, skip_sbert: bool = False):
     """Run spaCy + sbert once over the full df.
 
     Returns (docs, init_docs, sim_correct, sim_wrong, sbert_pcs) aligned to df.index.
@@ -440,7 +441,7 @@ def precompute_nlp_and_embeddings(df: pd.DataFrame, n_pca: int = N_SBERT_PCA):
 
     sim_correct = sim_wrong = None
     sbert_pcs = None
-    if "correct_answer" in df.columns and "wrong_answer" in df.columns:
+    if not skip_sbert and "correct_answer" in df.columns and "wrong_answer" in df.columns:
         sbert = _get_sbert()
         reb_emb = sbert.encode(text_list, batch_size=64, show_progress_bar=False,
                                convert_to_numpy=True)
@@ -862,7 +863,6 @@ def run_feature_importance(model_name, clf, X_test, y_test, feature_names, n_rep
         ]
 
     elif model_name == "svm-rbf":
-        # Permutation importance — slow but model-agnostic
         result = permutation_importance(
             clf, X_test, y_test, n_repeats=n_repeats, random_state=42, n_jobs=-1
         )
@@ -874,6 +874,13 @@ def run_feature_importance(model_name, clf, X_test, y_test, feature_names, n_rep
                 "direction": None,
             }
             for name, mean, std in zip(feature_names, result.importances_mean, result.importances_std)
+        ]
+
+    elif model_name == "rf":
+        importances = clf.feature_importances_
+        records = [
+            {"feature": name, "importance": float(imp), "direction": None}
+            for name, imp in zip(feature_names, importances)
         ]
 
     else:
@@ -932,11 +939,13 @@ def _build_classifier(model_name: str, params: dict, y_train: np.ndarray):
             early_stopping=True, validation_fraction=0.1, n_iter_no_change=10,
         )
     if model_name == "elasticnet":
-        # Logistic regression with combined L1+L2 penalty. saga solver is
-        # required for elasticnet. l1_ratio=0 -> pure L2, =1 -> pure L1.
         return LogisticRegression(
             **params, penalty="elasticnet", solver="saga",
             max_iter=5000, class_weight="balanced", random_state=42, n_jobs=-1,
+        )
+    if model_name == "rf":
+        return RandomForestClassifier(
+            **params, class_weight="balanced", random_state=42, n_jobs=-1,
         )
     raise ValueError(f"Unknown model: {model_name}")
 
@@ -976,6 +985,13 @@ def _suggest_params(trial: "optuna.Trial", model_name: str) -> dict:
             "C": trial.suggest_float("C", 1e-3, 1e2, log=True),
             "l1_ratio": trial.suggest_float("l1_ratio", 0.0, 1.0),
         }
+    if model_name == "rf":
+        return {
+            "n_estimators": trial.suggest_int("n_estimators", 100, 500, step=50),
+            "max_depth": trial.suggest_int("max_depth", 4, 12),
+            "min_samples_leaf": trial.suggest_int("min_samples_leaf", 2, 20),
+            "max_features": trial.suggest_categorical("max_features", ["sqrt", "log2", 0.5, 0.8]),
+        }
     raise ValueError(f"Unknown model: {model_name}")
 
 
@@ -1010,7 +1026,7 @@ def _compute_shap(model_name, clf, X_train, X_test, bg_size=100, max_test=200, s
         explainer = shap.LinearExplainer(clf, bg)
         sv = explainer.shap_values(X_test)
         X_explained = X_test
-    elif model_name == "xgboost":
+    elif model_name in ("xgboost", "rf"):
         explainer = shap.TreeExplainer(clf)
         sv = explainer.shap_values(X_test)
         X_explained = X_test
@@ -1200,7 +1216,7 @@ def run_nested_cv(
 def main():
     parser = argparse.ArgumentParser(description="Train sycophancy flip classifier (small models)")
     parser.add_argument("--model", required=True,
-                        choices=["logreg", "xgboost", "svm-rbf", "mlp", "elasticnet"],
+                        choices=["logreg", "xgboost", "svm-rbf", "mlp", "elasticnet", "rf"],
                         help="Classifier choice")
     parser.add_argument("--input", required=True, help="Path to merged CSV")
     parser.add_argument("--output", required=True, help="Output directory for results")
@@ -1210,10 +1226,10 @@ def main():
                         help="Optuna trials per outer fold")
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--features", default="full",
-                        choices=["full", "embedding", "linguistic"],
-                        help="full = all 121 features; embedding = 60 sbert PCA components only "
-                             "(option 2, frozen-embedding + classical head); linguistic = "
-                             "hand-crafted features only, no embeddings (baseline)")
+                        choices=["full", "embedding", "linguistic", "rebuttal_only"],
+                        help="full = all 121 features; embedding = 60 sbert PCA only; "
+                             "linguistic = hand-crafted only; "
+                             "rebuttal_only = 60 rebuttal-text-only (no sim/diff/sbert)")
     args = parser.parse_args()
 
     os.makedirs(args.output, exist_ok=True)
@@ -1238,8 +1254,9 @@ def main():
           f"FLIP={df['label_encoded'].mean()*100:.1f}%")
 
     # ── Step 2: Pre-compute spaCy + sbert ONCE on full df ──
+    skip_sbert = args.features == "rebuttal_only"
     print(f"\nPre-computing spaCy + sentence-transformer embeddings (once)...")
-    docs, init_docs, sim_c, sim_w, sbert_pcs = precompute_nlp_and_embeddings(df)
+    docs, init_docs, sim_c, sim_w, sbert_pcs = precompute_nlp_and_embeddings(df, skip_sbert=skip_sbert)
 
     # ── Step 3: Extract features ──
     print(f"Extracting features...")
