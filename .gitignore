@@ -40,3 +40,4 @@ shakable/results/distilbert_mcq_cv/fold_1/checkpoints/best_model.pt
 shakable/results/bert_mcq_cv/fold_4/checkpoints/best_model.pt
 shakable/results/bert_mcq_cv/fold_2/checkpoints/best_model.pt
 *.inetloc
+FINAL/results/SVM/run.log
