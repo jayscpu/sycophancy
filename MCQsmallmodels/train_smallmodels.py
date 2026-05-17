@@ -32,6 +32,7 @@ import numpy as np
 import pandas as pd
 from sklearn.linear_model import LogisticRegression
 from sklearn.svm import SVC
+from sklearn.neural_network import MLPClassifier
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
 from sklearn.inspection import permutation_importance
@@ -120,6 +121,31 @@ INTENSIFIERS = {
     "very", "really", "extremely", "super", "totally", "absolutely",
 }
 
+# Concede-then-redirect rhetorical move: "yes but...", "you're right but..."
+# Captures rebuttals that acknowledge the AI's position before redirecting.
+CONCEDE_MARKERS = {
+    "yes but", "true but", "you're right but", "youre right but",
+    "i agree but", "i agree, but", "agreed but", "agree but",
+    "fair point but", "fair enough but", "fair point",
+    "i see your point but", "i see your point",
+    "you have a point but", "you have a point",
+    "that's true but", "thats true but",
+    "valid but", "valid point but",
+}
+
+# Rhetorical question markers: phrases that frame the rebuttal as a question
+# even when no answer is expected ("have you considered...", "isn't it...").
+RHETORICAL_QUESTION_MARKERS = {
+    "have you considered", "have you thought",
+    "don't you think", "dont you think",
+    "isn't it", "isnt it",
+    "wouldn't it", "wouldnt it",
+    "shouldn't it", "shouldnt it",
+    "aren't you", "arent you",
+    "wasn't it", "wasnt it",
+    "what if", "what about",
+}
+
 _FIRST_PERSON_RE = re.compile(r"\b(i|my|me|i'm|i've|i'll|i'd|myself)\b")
 _SECOND_PERSON_RE = re.compile(r"\b(you|your|you're|you've|you'll|yourself)\b")
 _THIRD_PERSON_RE = re.compile(
@@ -139,6 +165,27 @@ _EMOJI_RE = re.compile(
 )
 _QUOTED_RE = re.compile(r"[\"“”][^\"“”]+[\"“”]")
 
+# Initial-reframe pattern: rebuttal starts with a contradiction/correction word
+# (leading whitespace and an optional opening quote are skipped).
+_INITIAL_REFRAME_RE = re.compile(
+    r"^[\s\"'“‘]*\s*(actually|but|however|wait|no|nope|nah|um|umm)\b",
+    re.IGNORECASE,
+)
+
+# Numerical expressions: digits possibly with decimals/separators and an
+# optional unit/ordinal/currency suffix. Captures specificity / evidence density.
+_NUMERICAL_RE = re.compile(
+    r"\b\d+(?:[.,]\d+)?(?:%|st|nd|rd|th|°[cf]?|s)?\b",
+    re.IGNORECASE,
+)
+
+# Hesitation/musing punctuation — distinct from emphatic !!/??/... lumped under
+# n_repeated_punctuation. Captures unicode horizontal ellipsis (…) and 3+ dots.
+_ELLIPSIS_RE = re.compile(r"…|\.{3,}")
+
+# Markdown asterisk emphasis: *word* (single token) or *phrase here* (multi).
+_ASTERISK_EMPH_RE = re.compile(r"\*[^\s*][^*]*\*")
+
 
 def _count_phrases(text_lower: str, lexicon: set[str]) -> int:
     """Count how many lexicon phrases appear in the text (substring match)."""
@@ -151,6 +198,8 @@ def _count_hedging(text_lower: str) -> int:
     count = _count_phrases(text_lower, HEDGING)
     count -= text_lower.count("i don't think") + text_lower.count("i dont think")
     return max(0, count)
+
+
 
 
 # ─────────────────────────────────────────────
@@ -533,6 +582,30 @@ def extract_features(
         lambda s: int(bool(s.strip()) and s.strip().endswith("?") and "." not in s and "!" not in s)
     )
 
+    # — Discourse / rhetorical move structure
+    feats["n_concede_markers"] = text_lower.apply(
+        lambda s: _count_phrases(s, CONCEDE_MARKERS)
+    )
+    feats["has_initial_reframe"] = text.apply(
+        lambda s: int(bool(_INITIAL_REFRAME_RE.match(s)))
+    )
+    feats["n_rhetorical_question_markers"] = text_lower.apply(
+        lambda s: _count_phrases(s, RHETORICAL_QUESTION_MARKERS)
+    )
+
+    # — Specificity / evidence density
+    feats["n_numerical_expressions"] = text.apply(
+        lambda s: len(_NUMERICAL_RE.findall(s))
+    )
+
+    # — Data-grounded patterns kept after empirical screening (3 others
+    # tested and dropped after near-zero SHAP attribution):
+    # Hesitant/musing punctuation (distinct from emphatic !! ?? lumped in
+    # n_repeated_punctuation): "wait… really?" patterns.
+    feats["n_ellipsis"] = text.apply(lambda s: len(_ELLIPSIS_RE.findall(s)))
+    # Markdown-style emphasis: *word* — common in LLM-generated rhetorical text
+    feats["n_asterisk_emphasis"] = text.apply(lambda s: len(_ASTERISK_EMPH_RE.findall(s)))
+
     # — Semantic: VADER  (vader_neu dropped: exact linear dependence neu = 1 - pos - neg)
     vader_scores = text.apply(lambda s: _VADER.polarity_scores(s))
     feats["vader_pos"] = vader_scores.apply(lambda d: d["pos"])
@@ -846,6 +919,25 @@ def _build_classifier(model_name: str, params: dict, y_train: np.ndarray):
             **params, kernel="rbf", class_weight="balanced",
             probability=True, random_state=42,
         )
+    if model_name == "mlp":
+        # MLPClassifier doesn't accept class_weight/sample_weight; per-fold
+        # threshold tuning compensates for the mild 45/55 imbalance.
+        # hidden_layer_sizes comes in as a string from Optuna; parse to tuple.
+        mlp_params = dict(params)
+        if isinstance(mlp_params.get("hidden_layer_sizes"), str):
+            import ast
+            mlp_params["hidden_layer_sizes"] = ast.literal_eval(mlp_params["hidden_layer_sizes"])
+        return MLPClassifier(
+            **mlp_params, max_iter=500, random_state=42,
+            early_stopping=True, validation_fraction=0.1, n_iter_no_change=10,
+        )
+    if model_name == "elasticnet":
+        # Logistic regression with combined L1+L2 penalty. saga solver is
+        # required for elasticnet. l1_ratio=0 -> pure L2, =1 -> pure L1.
+        return LogisticRegression(
+            **params, penalty="elasticnet", solver="saga",
+            max_iter=5000, class_weight="balanced", random_state=42, n_jobs=-1,
+        )
     raise ValueError(f"Unknown model: {model_name}")
 
 
@@ -870,6 +962,19 @@ def _suggest_params(trial: "optuna.Trial", model_name: str) -> dict:
         return {
             "C": trial.suggest_float("C", 1e-2, 1e2, log=True),
             "gamma": trial.suggest_float("gamma", 1e-4, 1e1, log=True),
+        }
+    if model_name == "mlp":
+        return {
+            "hidden_layer_sizes": trial.suggest_categorical(
+                "hidden_layer_sizes", ["(32,)", "(64,)", "(128,)", "(64, 32)", "(128, 64)"]
+            ),
+            "alpha": trial.suggest_float("alpha", 1e-5, 1e-1, log=True),
+            "learning_rate_init": trial.suggest_float("learning_rate_init", 1e-4, 1e-2, log=True),
+        }
+    if model_name == "elasticnet":
+        return {
+            "C": trial.suggest_float("C", 1e-3, 1e2, log=True),
+            "l1_ratio": trial.suggest_float("l1_ratio", 0.0, 1.0),
         }
     raise ValueError(f"Unknown model: {model_name}")
 
@@ -900,7 +1005,7 @@ def _compute_shap(model_name, clf, X_train, X_test, bg_size=100, max_test=200, s
       svm-rbf → KernelExplainer with subsampled background AND test set (slow)
     """
     rng = np.random.RandomState(seed)
-    if model_name == "logreg":
+    if model_name in ("logreg", "elasticnet"):
         bg = shap.sample(X_train, min(bg_size, len(X_train)), random_state=seed)
         explainer = shap.LinearExplainer(clf, bg)
         sv = explainer.shap_values(X_test)
@@ -909,7 +1014,10 @@ def _compute_shap(model_name, clf, X_train, X_test, bg_size=100, max_test=200, s
         explainer = shap.TreeExplainer(clf)
         sv = explainer.shap_values(X_test)
         X_explained = X_test
-    elif model_name == "svm-rbf":
+    elif model_name in ("svm-rbf", "mlp"):
+        # Model-agnostic KernelExplainer — sklearn MLPClassifier doesn't expose
+        # gradients via shap.DeepExplainer (that needs keras/torch), so kernel
+        # SHAP is the cleanest option.
         bg = shap.sample(X_train, min(bg_size, len(X_train)), random_state=seed)
         if len(X_test) > max_test:
             idx = rng.choice(len(X_test), max_test, replace=False)
@@ -1092,7 +1200,7 @@ def run_nested_cv(
 def main():
     parser = argparse.ArgumentParser(description="Train sycophancy flip classifier (small models)")
     parser.add_argument("--model", required=True,
-                        choices=["logreg", "xgboost", "svm-rbf"],
+                        choices=["logreg", "xgboost", "svm-rbf", "mlp", "elasticnet"],
                         help="Classifier choice")
     parser.add_argument("--input", required=True, help="Path to merged CSV")
     parser.add_argument("--output", required=True, help="Output directory for results")
