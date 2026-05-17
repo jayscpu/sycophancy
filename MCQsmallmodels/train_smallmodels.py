@@ -33,6 +33,7 @@ import pandas as pd
 from sklearn.linear_model import LogisticRegression
 from sklearn.svm import SVC
 from sklearn.preprocessing import StandardScaler
+from sklearn.decomposition import PCA
 from sklearn.inspection import permutation_importance
 import xgboost as xgb
 from sklearn.model_selection import StratifiedGroupKFold
@@ -121,6 +122,22 @@ INTENSIFIERS = {
 
 _FIRST_PERSON_RE = re.compile(r"\b(i|my|me|i'm|i've|i'll|i'd|myself)\b")
 _SECOND_PERSON_RE = re.compile(r"\b(you|your|you're|you've|you'll|yourself)\b")
+_THIRD_PERSON_RE = re.compile(
+    r"\b(he|she|it|they|him|her|them|his|hers|its|their|theirs|"
+    r"himself|herself|itself|themself|themselves|"
+    r"he's|she's|it's|they're|they've|they'd|they'll)\b"
+)
+
+# Typography / emphasis patterns
+_REPEATED_PUNCT_RE = re.compile(r"[!?.]{2,}")
+_ALL_CAPS_WORD_RE = re.compile(r"\b[A-Z]{2,}\b")
+_EMOJI_RE = re.compile(
+    "[\U0001F300-\U0001FAFF"     # most emoji blocks
+    "\U00002600-\U000027BF"      # misc symbols + dingbats
+    "\U0001F000-\U0001F02F"      # mahjong / cards
+    "]"
+)
+_QUOTED_RE = re.compile(r"[\"“”][^\"“”]+[\"“”]")
 
 
 def _count_phrases(text_lower: str, lexicon: set[str]) -> int:
@@ -236,7 +253,8 @@ _SBERT = None
 def _get_nlp():
     global _NLP
     if _NLP is None:
-        _NLP = spacy.load("en_core_web_sm", disable=["ner"])
+        # NER enabled so we can count doc.ents for n_named_entities
+        _NLP = spacy.load("en_core_web_sm")
     return _NLP
 
 
@@ -339,18 +357,40 @@ def _morph_syntax_features(docs: list) -> pd.DataFrame:
             "n_conjunctions": conj,
             "mean_sentence_len": float(np.mean(sent_lens)),
             "sentence_len_var": float(np.var(sent_lens)) if len(sent_lens) > 1 else 0.0,
+            "n_named_entities": len(doc.ents),
         })
     return pd.DataFrame(rows)
 
 
-def precompute_nlp_and_embeddings(df: pd.DataFrame):
-    """Run spaCy + sbert once over the full df. Returns (docs, sim_correct, sim_wrong)
-    aligned to df.index. Pass these into extract_features to avoid re-running per split."""
+N_SBERT_PCA = 60  # how many PCA components of the rebuttal embedding to use
+
+
+def precompute_nlp_and_embeddings(df: pd.DataFrame, n_pca: int = N_SBERT_PCA):
+    """Run spaCy + sbert once over the full df.
+
+    Returns (docs, init_docs, sim_correct, sim_wrong, sbert_pcs) aligned to df.index.
+      docs       — spaCy parse of rebuttal_text
+      init_docs  — spaCy parse of initial_answer (or None if column absent);
+                   used internally by extract_features to compute the
+                   rebuttal-vs-initial difference features
+      sbert_pcs  — top-`n_pca` PCA components of rebuttal sentence embeddings
+
+    Note: PCA is fit on the full dataset (unsupervised, label-free), which is
+    a mild methodological compromise vs per-fold refitting. Standard practice
+    for embedding dimensionality reduction.
+    """
     text_list = df["rebuttal_text"].astype(str).tolist()
     nlp = _get_nlp()
     docs = list(nlp.pipe(text_list, batch_size=64))
 
+    # Parse Haiku's initial answer too — needed for diff features
+    init_docs = None
+    if "initial_answer" in df.columns:
+        init_text_list = df["initial_answer"].fillna("").astype(str).tolist()
+        init_docs = list(nlp.pipe(init_text_list, batch_size=64))
+
     sim_correct = sim_wrong = None
+    sbert_pcs = None
     if "correct_answer" in df.columns and "wrong_answer" in df.columns:
         sbert = _get_sbert()
         reb_emb = sbert.encode(text_list, batch_size=64, show_progress_bar=False,
@@ -361,14 +401,55 @@ def precompute_nlp_and_embeddings(df: pd.DataFrame):
                                batch_size=64, show_progress_bar=False, convert_to_numpy=True)
         sim_correct = _cos_sim(reb_emb, cor_emb)
         sim_wrong = _cos_sim(reb_emb, wro_emb)
-    return docs, sim_correct, sim_wrong
+
+        # PCA on rebuttal embeddings — gives classifier semantic content
+        if n_pca > 0:
+            pca = PCA(n_components=min(n_pca, reb_emb.shape[1], len(reb_emb)),
+                      random_state=42)
+            sbert_pcs = pca.fit_transform(reb_emb)
+            explained = pca.explained_variance_ratio_.sum()
+            print(f"  sbert PCA: {sbert_pcs.shape[1]} components capture "
+                  f"{explained * 100:.1f}% of embedding variance")
+
+    return docs, init_docs, sim_correct, sim_wrong, sbert_pcs
+
+
+def _init_response_quick(init_text_series: pd.Series, init_docs: list) -> dict:
+    """Compute the minimal init-side quantities used by the diff features.
+    Returned as a dict of arrays — values are not exposed as features themselves,
+    only consumed by the diff computation below."""
+    hedging, certainty, modal_unc_ratio, vader_comp, n_words = [], [], [], [], []
+    for s, doc in zip(init_text_series, init_docs):
+        s = str(s); s_lower = s.lower()
+        nw = max(1, len(s.split()))
+        n_words.append(nw)
+        hedging.append(_count_hedging(s_lower))
+        certainty.append(_count_phrases(s_lower, CERTAINTY))
+        modals_all = modals_uncertain = 0
+        for t in doc:
+            lemma = t.lemma_.lower()
+            if (t.pos_ == "AUX" or t.tag_ == "MD") and lemma in MODALS_ALL:
+                modals_all += 1
+                if lemma in MODALS_UNCERTAIN:
+                    modals_uncertain += 1
+        modal_unc_ratio.append(modals_uncertain / max(1, modals_all))
+        vader_comp.append(_VADER.polarity_scores(s)["compound"])
+    return {
+        "init_n_hedging": np.array(hedging, dtype=float),
+        "init_n_certainty": np.array(certainty, dtype=float),
+        "init_modal_uncertainty_ratio": np.array(modal_unc_ratio, dtype=float),
+        "init_vader_compound": np.array(vader_comp, dtype=float),
+        "init_len_words": np.array(n_words, dtype=float),
+    }
 
 
 def extract_features(
     df: pd.DataFrame,
     docs: list | None = None,
+    init_docs: list | None = None,
     sim_correct: np.ndarray | None = None,
     sim_wrong: np.ndarray | None = None,
+    sbert_pcs: np.ndarray | None = None,
 ) -> tuple[pd.DataFrame, list[str]]:
     """
     Build a numeric feature matrix from a DataFrame of rebuttals.
@@ -394,8 +475,8 @@ def extract_features(
     Pre-compute `docs` / `sim_*` once on the full df with precompute_nlp_and_embeddings()
     and pass them in to avoid running spaCy + sbert separately for each CV split.
     """
-    if docs is None or sim_correct is None or sim_wrong is None:
-        docs, sim_correct, sim_wrong = precompute_nlp_and_embeddings(df)
+    if docs is None or sim_correct is None or sim_wrong is None or sbert_pcs is None:
+        docs, init_docs, sim_correct, sim_wrong, sbert_pcs = precompute_nlp_and_embeddings(df)
 
     feats = pd.DataFrame(index=df.index)
     text = df["rebuttal_text"].astype(str)
@@ -415,6 +496,12 @@ def extract_features(
     feats["starts_lower"] = text.apply(lambda s: int(bool(s) and s[0].islower()))
     feats["has_digit"] = text.str.contains(r"\d", regex=True).astype(int)
     # ends_with_q dropped: near-identical signal to n_question_marks > 0
+
+    # — Typography / emphasis
+    feats["n_all_caps_words"] = text.apply(lambda s: len(_ALL_CAPS_WORD_RE.findall(s)))
+    feats["n_repeated_punctuation"] = text.apply(lambda s: len(_REPEATED_PUNCT_RE.findall(s)))
+    feats["has_emoji"] = text.apply(lambda s: int(bool(_EMOJI_RE.search(s))))
+    feats["n_quoted_strings"] = text.apply(lambda s: len(_QUOTED_RE.findall(s)))
 
     # — Lexical: readability + diversity  (flesch_grade dropped: r~0.95 with flesch_reading_ease)
     feats["flesch_reading_ease"] = text.apply(lambda s: textstat.flesch_reading_ease(s) if s.strip() else 0.0)
@@ -439,6 +526,9 @@ def extract_features(
     feats["second_person_ratio"] = text_lower.apply(
         lambda s: len(_SECOND_PERSON_RE.findall(s)) / max(1, len(s.split()))
     )
+    feats["third_person_ratio"] = text_lower.apply(
+        lambda s: len(_THIRD_PERSON_RE.findall(s)) / max(1, len(s.split()))
+    )
     feats["is_question_only"] = text.apply(
         lambda s: int(bool(s.strip()) and s.strip().endswith("?") and "." not in s and "!" not in s)
     )
@@ -459,6 +549,31 @@ def extract_features(
     if sim_correct is not None and sim_wrong is not None:
         feats["sim_to_wrong"] = sim_wrong
         feats["sim_margin_wrong_minus_correct"] = sim_wrong - sim_correct
+
+    # — Semantic: sentence-transformer PCA components of the rebuttal embedding.
+    # Gives the classifier direct access to semantic content of the rebuttal
+    # (beyond similarity-to-answer). PCA components are not individually
+    # interpretable; SHAP on them tells us *that* meaning matters, not *what* meaning.
+    if sbert_pcs is not None:
+        pca_cols = pd.DataFrame(
+            sbert_pcs,
+            index=df.index,
+            columns=[f"sbert_pc_{i:02d}" for i in range(sbert_pcs.shape[1])],
+        )
+        feats = pd.concat([feats, pca_cols], axis=1)
+
+    # — Difference features: how the rebuttal contrasts with Haiku's initial
+    # answer. The init-side values themselves are not exposed; only the
+    # rebuttal-minus-initial deltas are surfaced as features.
+    if init_docs is not None and "initial_answer" in df.columns:
+        init = _init_response_quick(df["initial_answer"], init_docs)
+        feats["diff_n_hedging"] = feats["n_hedging"].values - init["init_n_hedging"]
+        feats["diff_n_certainty"] = feats["n_certainty"].values - init["init_n_certainty"]
+        feats["diff_modal_uncertainty"] = (
+            feats["modal_uncertainty_ratio"].values - init["init_modal_uncertainty_ratio"]
+        )
+        feats["diff_vader_compound"] = feats["vader_compound"].values - init["init_vader_compound"]
+        feats["diff_len_words"] = feats["len_words"].values - init["init_len_words"]
 
     return feats, feats.columns.tolist()
 
@@ -867,8 +982,32 @@ def run_nested_cv(
         clf = _build_classifier(model_name, best_params, y_inner)
         clf.fit(X_inner_s, y_inner)
 
+        # Threshold tuning: get OOF probs on outer-train via inner CV with the
+        # tuned hyperparameters, then sweep thresholds for max F1. Tuned
+        # threshold is applied to outer-test predictions. Threshold tuning is
+        # leakage-safe because the held-out probs come from inner CV (no
+        # outer-train datum is predicted by a model it was trained on).
+        tune_cv = StratifiedGroupKFold(n_splits=n_inner_folds, shuffle=True, random_state=seed)
+        oof_train_probs = np.zeros(len(y_inner))
+        for tr, va in tune_cv.split(X_inner, y_inner, g_inner):
+            sc = StandardScaler()
+            X_tr_s = sc.fit_transform(X_inner[tr])
+            X_va_s = sc.transform(X_inner[va])
+            clf_in = _build_classifier(model_name, best_params, y_inner[tr])
+            clf_in.fit(X_tr_s, y_inner[tr])
+            oof_train_probs[va] = clf_in.predict_proba(X_va_s)[:, 1]
+
+        thresholds = np.arange(0.05, 0.96, 0.01)
+        f1_per_t = np.array([
+            f1_score(y_inner, (oof_train_probs >= t).astype(int), zero_division=0)
+            for t in thresholds
+        ])
+        best_t = float(thresholds[int(np.argmax(f1_per_t))])
+        best_inner_tuned_f1 = float(f1_per_t.max())
+
         probs = clf.predict_proba(X_test_s)[:, 1]
-        preds = (probs >= 0.5).astype(int)
+        preds_default = (probs >= 0.5).astype(int)
+        preds = (probs >= best_t).astype(int)  # tuned-threshold preds for reporting
         oof_probs[outer_te] = probs
         oof_preds[outer_te] = preds
         oof_assigned[outer_te] = True
@@ -879,7 +1018,10 @@ def run_nested_cv(
             "fold": fold_i,
             "best_params": best_params,
             "best_inner_f1": best_inner_f1,
+            "tuned_threshold": best_t,
+            "tuned_inner_f1": best_inner_tuned_f1,
             "f1": float(f1_score(y_test, preds, zero_division=0)),
+            "f1_at_0.5": float(f1_score(y_test, preds_default, zero_division=0)),
             "precision": float(precision_score(y_test, preds, zero_division=0)),
             "recall": float(recall_score(y_test, preds, zero_division=0)),
             "accuracy": float(accuracy_score(y_test, preds)),
@@ -887,7 +1029,7 @@ def run_nested_cv(
             "fpr": float(fp / (fp + tn)) if (fp + tn) > 0 else 0.0,
             "confusion_matrix": cm.tolist(),
         }
-        print(f"  fold {fold_i}  F1={fold_metric['f1']:.4f}  "
+        print(f"  fold {fold_i}  F1={fold_metric['f1']:.4f} (vs {fold_metric['f1_at_0.5']:.4f} @0.5, t={best_t:.2f})  "
               f"P={fold_metric['precision']:.3f}  R={fold_metric['recall']:.3f}  "
               f"AUC={fold_metric['roc_auc']:.3f}")
 
@@ -959,6 +1101,11 @@ def main():
     parser.add_argument("--n-trials", type=int, default=30,
                         help="Optuna trials per outer fold")
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--features", default="full",
+                        choices=["full", "embedding", "linguistic"],
+                        help="full = all 121 features; embedding = 60 sbert PCA components only "
+                             "(option 2, frozen-embedding + classical head); linguistic = "
+                             "hand-crafted features only, no embeddings (baseline)")
     args = parser.parse_args()
 
     os.makedirs(args.output, exist_ok=True)
@@ -984,12 +1131,27 @@ def main():
 
     # ── Step 2: Pre-compute spaCy + sbert ONCE on full df ──
     print(f"\nPre-computing spaCy + sentence-transformer embeddings (once)...")
-    docs, sim_c, sim_w = precompute_nlp_and_embeddings(df)
+    docs, init_docs, sim_c, sim_w, sbert_pcs = precompute_nlp_and_embeddings(df)
 
     # ── Step 3: Extract features ──
     print(f"Extracting features...")
-    feats, feature_names = extract_features(df, docs=docs, sim_correct=sim_c, sim_wrong=sim_w)
-    print(f"  Feature count: {len(feature_names)}")
+    feats, feature_names = extract_features(df, docs=docs, init_docs=init_docs,
+                                             sim_correct=sim_c, sim_wrong=sim_w,
+                                             sbert_pcs=sbert_pcs)
+    print(f"  Feature count (full): {len(feature_names)}")
+
+    # ── Step 3b: Filter to requested feature subset ──
+    if args.features == "embedding":
+        keep = [c for c in feature_names if c.startswith("sbert_pc_")]
+        feats = feats[keep]
+        feature_names = keep
+        print(f"  --features embedding: kept {len(feature_names)} sbert PCA columns only")
+    elif args.features == "linguistic":
+        keep = [c for c in feature_names if not c.startswith("sbert_pc_")]
+        feats = feats[keep]
+        feature_names = keep
+        print(f"  --features linguistic: kept {len(feature_names)} hand-crafted columns only")
+    # else "full" — no filter
 
     X = feats.values.astype(np.float64)
     y = df["label_encoded"].values
