@@ -414,7 +414,8 @@ def _morph_syntax_features(docs: list) -> pd.DataFrame:
 N_SBERT_PCA = 60  # how many PCA components of the rebuttal embedding to use
 
 
-def precompute_nlp_and_embeddings(df: pd.DataFrame, n_pca: int = N_SBERT_PCA):
+def precompute_nlp_and_embeddings(df: pd.DataFrame, n_pca: int = N_SBERT_PCA,
+                                   skip_sbert: bool = False):
     """Run spaCy + sbert once over the full df.
 
     Returns (docs, init_docs, sim_correct, sim_wrong, sbert_pcs) aligned to df.index.
@@ -432,15 +433,15 @@ def precompute_nlp_and_embeddings(df: pd.DataFrame, n_pca: int = N_SBERT_PCA):
     nlp = _get_nlp()
     docs = list(nlp.pipe(text_list, batch_size=64))
 
-    # Parse Haiku's initial answer too — needed for diff features
+    # Parse Haiku's initial answer too — needed for diff features (skipped in rebuttal_only mode)
     init_docs = None
-    if "initial_answer" in df.columns:
+    if not skip_sbert and "initial_answer" in df.columns:
         init_text_list = df["initial_answer"].fillna("").astype(str).tolist()
         init_docs = list(nlp.pipe(init_text_list, batch_size=64))
 
     sim_correct = sim_wrong = None
     sbert_pcs = None
-    if "correct_answer" in df.columns and "wrong_answer" in df.columns:
+    if not skip_sbert and "correct_answer" in df.columns and "wrong_answer" in df.columns:
         sbert = _get_sbert()
         reb_emb = sbert.encode(text_list, batch_size=64, show_progress_bar=False,
                                convert_to_numpy=True)
@@ -524,7 +525,7 @@ def extract_features(
     Pre-compute `docs` / `sim_*` once on the full df with precompute_nlp_and_embeddings()
     and pass them in to avoid running spaCy + sbert separately for each CV split.
     """
-    if docs is None or sim_correct is None or sim_wrong is None or sbert_pcs is None:
+    if docs is None:
         docs, init_docs, sim_correct, sim_wrong, sbert_pcs = precompute_nlp_and_embeddings(df)
 
     feats = pd.DataFrame(index=df.index)
@@ -1210,10 +1211,10 @@ def main():
                         help="Optuna trials per outer fold")
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--features", default="full",
-                        choices=["full", "embedding", "linguistic"],
-                        help="full = all 121 features; embedding = 60 sbert PCA components only "
-                             "(option 2, frozen-embedding + classical head); linguistic = "
-                             "hand-crafted features only, no embeddings (baseline)")
+                        choices=["full", "embedding", "linguistic", "rebuttal_only"],
+                        help="full = all 121 features; embedding = 60 sbert PCA components only; "
+                             "linguistic = hand-crafted features only, no embeddings; "
+                             "rebuttal_only = 60 rebuttal-text-only features (no sim/diff/sbert)")
     args = parser.parse_args()
 
     os.makedirs(args.output, exist_ok=True)
@@ -1238,8 +1239,11 @@ def main():
           f"FLIP={df['label_encoded'].mean()*100:.1f}%")
 
     # ── Step 2: Pre-compute spaCy + sbert ONCE on full df ──
+    skip_sbert = args.features == "rebuttal_only"
     print(f"\nPre-computing spaCy + sentence-transformer embeddings (once)...")
-    docs, init_docs, sim_c, sim_w, sbert_pcs = precompute_nlp_and_embeddings(df)
+    docs, init_docs, sim_c, sim_w, sbert_pcs = precompute_nlp_and_embeddings(
+        df, skip_sbert=skip_sbert
+    )
 
     # ── Step 3: Extract features ──
     print(f"Extracting features...")
@@ -1249,6 +1253,11 @@ def main():
     print(f"  Feature count (full): {len(feature_names)}")
 
     # ── Step 3b: Filter to requested feature subset ──
+    _REBUTTAL_ONLY_EXCLUDE = {
+        "sim_to_wrong", "sim_margin_wrong_minus_correct",
+        "diff_n_hedging", "diff_n_certainty", "diff_modal_uncertainty",
+        "diff_vader_compound", "diff_len_words",
+    }
     if args.features == "embedding":
         keep = [c for c in feature_names if c.startswith("sbert_pc_")]
         feats = feats[keep]
@@ -1259,6 +1268,12 @@ def main():
         feats = feats[keep]
         feature_names = keep
         print(f"  --features linguistic: kept {len(feature_names)} hand-crafted columns only")
+    elif args.features == "rebuttal_only":
+        keep = [c for c in feature_names
+                if c not in _REBUTTAL_ONLY_EXCLUDE and not c.startswith("sbert_pc_")]
+        feats = feats[keep]
+        feature_names = keep
+        print(f"  --features rebuttal_only: kept {len(feature_names)} rebuttal-text-only features")
     # else "full" — no filter
 
     X = feats.values.astype(np.float64)
