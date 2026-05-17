@@ -1,0 +1,17 @@
+
+==================================================
+Model: knn
+==================================================
+Device: cpu (small models — no GPU needed)
+Loaded 5859 samples, 293 questions, FLIP=43.3%
+
+Pre-computing spaCy + sentence-transformer embeddings (once)...
+Extracting features...
+  Feature count (full): 60
+
+Nested 5-fold outer × 3-fold inner CV, 30 Optuna trials per fold
+
+── Outer fold 1/5 (train=4693, test=1166) ──
+  best inner F1: 0.4923  params: {'metric': 'cosine', 'n_neighbors': 31, 'weights': 'uniform'}
+  fold 1  F1=0.6092 (vs 0.5011 @0.5, t=0.26)  P=0.451  R=0.940  AUC=0.615
+  computing SHAP (knn)...
