@@ -414,7 +414,8 @@ def _morph_syntax_features(docs: list) -> pd.DataFrame:
 N_SBERT_PCA = 60  # how many PCA components of the rebuttal embedding to use
 
 
-def precompute_nlp_and_embeddings(df: pd.DataFrame, n_pca: int = N_SBERT_PCA):
+def precompute_nlp_and_embeddings(df: pd.DataFrame, n_pca: int = N_SBERT_PCA,
+                                  compute_sbert: bool = True):
     """Run spaCy + sbert once over the full df.
 
     Returns (docs, init_docs, sim_correct, sim_wrong, sbert_pcs) aligned to df.index.
@@ -440,7 +441,7 @@ def precompute_nlp_and_embeddings(df: pd.DataFrame, n_pca: int = N_SBERT_PCA):
 
     sim_correct = sim_wrong = None
     sbert_pcs = None
-    if "correct_answer" in df.columns and "wrong_answer" in df.columns:
+    if compute_sbert and "correct_answer" in df.columns and "wrong_answer" in df.columns:
         sbert = _get_sbert()
         reb_emb = sbert.encode(text_list, batch_size=64, show_progress_bar=False,
                                convert_to_numpy=True)
@@ -1210,10 +1211,11 @@ def main():
                         help="Optuna trials per outer fold")
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--features", default="full",
-                        choices=["full", "embedding", "linguistic"],
-                        help="full = all 121 features; embedding = 60 sbert PCA components only "
-                             "(option 2, frozen-embedding + classical head); linguistic = "
-                             "hand-crafted features only, no embeddings (baseline)")
+                        choices=["full", "embedding", "linguistic", "rebuttal_only"],
+                        help="full = all features; embedding = 60 sbert PCA components only; "
+                             "linguistic = hand-crafted features only, no embeddings; "
+                             "rebuttal_only = strict 60 rebuttal-text features (no sbert, "
+                             "no sim-to-answer, no diff-vs-initial)")
     args = parser.parse_args()
 
     os.makedirs(args.output, exist_ok=True)
@@ -1238,8 +1240,11 @@ def main():
           f"FLIP={df['label_encoded'].mean()*100:.1f}%")
 
     # ── Step 2: Pre-compute spaCy + sbert ONCE on full df ──
-    print(f"\nPre-computing spaCy + sentence-transformer embeddings (once)...")
-    docs, init_docs, sim_c, sim_w, sbert_pcs = precompute_nlp_and_embeddings(df)
+    use_sbert = args.features != "rebuttal_only"
+    print(f"\nPre-computing spaCy{' + sentence-transformer embeddings' if use_sbert else ''} (once)...")
+    docs, init_docs, sim_c, sim_w, sbert_pcs = precompute_nlp_and_embeddings(
+        df, compute_sbert=use_sbert
+    )
 
     # ── Step 3: Extract features ──
     print(f"Extracting features...")
@@ -1259,6 +1264,17 @@ def main():
         feats = feats[keep]
         feature_names = keep
         print(f"  --features linguistic: kept {len(feature_names)} hand-crafted columns only")
+    elif args.features == "rebuttal_only":
+        _excluded = {
+            "sim_to_wrong", "sim_margin_wrong_minus_correct",
+            "diff_n_hedging", "diff_n_certainty", "diff_modal_uncertainty",
+            "diff_vader_compound", "diff_len_words",
+        }
+        keep = [c for c in feature_names
+                if not c.startswith("sbert_pc_") and c not in _excluded]
+        feats = feats[keep]
+        feature_names = keep
+        print(f"  --features rebuttal_only: kept {len(feature_names)} rebuttal-only columns")
     # else "full" — no filter
 
     X = feats.values.astype(np.float64)
